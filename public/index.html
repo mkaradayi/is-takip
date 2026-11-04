@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>İş Takip — Veri Mimarisi ve Altyapı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-role">Veri Mimarisi ve Altyapı Müdürlüğü</div>
+      <div class="brand-title">İş Takip</div>
+      <div class="brand-sub">Kişisel &amp; Birim işleri Panosu</div>
+    </div>
+
+    <div class="view-switch">
+      <button type="button" class="view-tab active" id="tabBoard" data-view="board">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="10" rx="1.5"/></svg>
+        Pano
+      </button>
+      <button type="button" class="view-tab" id="tabArchive" data-view="archive">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 13h4"/></svg>
+        Arşiv
+        <span class="view-count" id="archiveCountBadge">0</span>
+      </button>
+      <button type="button" class="view-tab" id="tabSettings" data-view="settings" title="Ayarlar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        Ayarlar
+      </button>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Sorumlu</div>
+      <div id="unitList"></div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Öncelik</div>
+      <div class="prio-row" id="prioFilterRow"></div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Proje</div>
+      <div id="projectList"></div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="side-btn" id="btnExport">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        Yedek olarak dışa aktar (.json)
+      </button>
+      <button class="side-btn" id="btnImport">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="M7 14l5-5 5 5"/><path d="M5 3h14"/></svg>
+        Yedekten içe aktar (.json)
+      </button>
+      <button class="side-btn" id="btnClear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        Tüm aktif işleri sil
+      </button>
+      <input type="file" id="fileInput" class="file-hidden" accept="application/json" />
+      <div class="save-status" id="saveStatus"><span class="status-dot"></span><span>Yükleniyor…</span></div>
+      <div class="storage-note" id="storageNote">Veriler sunucudaki <b>data/</b> klasöründeki JSON dosyalarına otomatik yazılır. Dışa/içe aktarma yalnızca yedek içindir (ek dosyaları içermez).</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div id="boardPage">
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="İş başlığında ara…" />
+        </div>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-ai" id="btnAi" title="AI asistanı aç/kapat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
+          AI Asistan
+        </button>
+        <button class="btn btn-primary" id="btnNewTask">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Yeni İş
+        </button>
+      </div>
+
+      <div class="pipeline" id="pipeline"></div>
+    </div>
+
+    <div class="alerts" id="alertBanner">
+      <div class="alerts-bar">
+        <span class="alerts-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        </span>
+        <span class="alerts-title">Dikkat gereken işler</span>
+        <div class="alerts-chips" id="alertChips"></div>
+        <div class="spacer"></div>
+        <button type="button" class="alerts-toggle" id="alertsToggle" aria-expanded="false">
+          <span id="alertsToggleText">Ayrıntılar</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+      </div>
+      <div class="alerts-panel" id="alertPanel"></div>
+    </div>
+
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+      <div class="empty-state" id="emptyState">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <h3>Filtreyle eşleşen iş yok</h3>
+        <p>Farklı bir sorumlu, öncelik veya proje seçin, aramayı temizleyin ya da yeni bir iş oluşturun.</p>
+        <button class="btn btn-primary" id="btnEmptyNew">Yeni İş Oluştur</button>
+      </div>
+    </div>
+    </div>
+
+    <div id="archivePage" style="display:none;">
+      <div class="archive-topbar">
+        <div class="topbar-row">
+          <h2 class="archive-heading">Arşiv</h2>
+          <div class="spacer"></div>
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="archiveSearchInput" placeholder="Arşivde ara…" />
+          </div>
+        </div>
+      </div>
+      <div class="archive-wrap">
+        <div class="archive-list" id="archiveList"></div>
+        <div class="archive-empty" id="archiveEmptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 13h4"/></svg>
+          <h3>Arşiv boş</h3>
+          <p>Tamamlanan veya artık takip etmek istemediğiniz işleri panodan arşive alabilirsiniz.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="settingsPage" style="display:none;">
+      <div class="archive-topbar">
+        <div class="topbar-row"><h2 class="archive-heading">Ayarlar</h2></div>
+      </div>
+      <div class="settings-wrap">
+        <section class="settings-card" id="unitsSection">
+          <div class="settings-card-head">
+            <h3>Sorumlular</h3>
+            <p>Kartlarda ve sol menüde görünen sorumlu listesi. Sıralamayı oklarla değiştirebilirsiniz.</p>
+          </div>
+          <div class="settings-add">
+            <input type="text" id="newUnitName" placeholder="Yeni sorumlu adı" maxlength="80" />
+            <button type="button" class="btn btn-primary btn-sm" id="btnAddUnit">Ekle</button>
+          </div>
+          <div class="project-manage-list" id="unitManageList"></div>
+        </section>
+
+        <section class="settings-card" id="projectsSection">
+          <div class="settings-card-head">
+            <h3>Projeler</h3>
+            <p>Arşivlenen projeler yeni işlerde seçilemez ama mevcut işlerde görünmeye devam eder.</p>
+          </div>
+          <div class="settings-add">
+            <input type="text" id="newProjectName" placeholder="Yeni proje adı" maxlength="80" />
+            <button type="button" class="btn btn-primary btn-sm" id="btnAddProject">Ekle</button>
+          </div>
+          <div class="project-manage-list" id="projectManageList"></div>
+          <div class="project-manage-empty" id="projectManageEmpty" style="display:none;">Henüz proje eklenmedi.</div>
+        </section>
+
+        <section class="settings-card settings-wide" id="aiModelsSection">
+          <div class="settings-card-head">
+            <h3>AI Modelleri</h3>
+            <p>AI asistanın kullanabileceği modeller. OpenAI uyumlu her sunucu eklenebilir (Ollama, LM Studio, vLLM, llama.cpp…). Model kartları oluşturabilmek için <b>araç çağırmayı (tool calling)</b> desteklemelidir. Anahtarlar yalnızca sunucuda, <code>data/ai-models.json</code> dosyasında saklanır.</p>
+          </div>
+          <div class="model-list" id="modelList"></div>
+          <form class="model-form" id="modelForm" autocomplete="off">
+            <div class="model-form-title" id="modelFormTitle">Yeni model ekle</div>
+            <div class="model-presets">
+              <span>Hazır adres:</span>
+              <button type="button" class="chip-btn" data-preset="http://localhost:11434/v1" data-pname="Ollama">Ollama</button>
+              <button type="button" class="chip-btn" data-preset="http://localhost:1234/v1" data-pname="LM Studio">LM Studio</button>
+              <button type="button" class="chip-btn" data-preset="http://localhost:8080/v1" data-pname="llama.cpp">llama.cpp</button>
+              <button type="button" class="chip-btn" data-preset="http://localhost:8000/v1" data-pname="vLLM">vLLM</button>
+            </div>
+            <div class="model-grid">
+              <div class="field"><label for="mName">Görünen ad</label><input type="text" id="mName" maxlength="80" placeholder="Örn. Ollama · Qwen 2.5 14B" /></div>
+              <div class="field"><label for="mBase">Adres (base URL)</label><input type="text" id="mBase" placeholder="http://localhost:11434/v1" /></div>
+              <div class="field">
+                <label for="mModel">Model adı</label>
+                <div class="model-name-row">
+                  <input type="text" id="mModel" list="mModelList" placeholder="Örn. qwen2.5:14b" />
+                  <button type="button" class="btn btn-sm" id="mFetch" title="Sunucudaki modelleri getir">Modelleri getir</button>
+                </div>
+                <datalist id="mModelList"></datalist>
+              </div>
+              <div class="field"><label for="mKey" id="mKeyLabel">API anahtarı <span class="opt-mark">(opsiyonel)</span></label><input type="password" id="mKey" placeholder="Yerel sunucularda genelde gerekmez" /></div>
+            </div>
+            <div class="model-form-status" id="mStatus"></div>
+            <div class="model-form-actions">
+              <button type="button" class="btn btn-sm" id="mCancel" style="display:none;">Vazgeç</button>
+              <button type="button" class="btn btn-sm" id="mTest">Bağlantıyı test et</button>
+              <button type="submit" class="btn btn-sm btn-primary" id="mSave">Kaydet</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- AI ASİSTAN PANELİ -->
+  <aside class="ai-panel" id="aiPanel" aria-hidden="true" aria-label="AI asistan">
+    <div class="ai-head">
+      <div class="ai-head-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
+        <div class="ai-head-text"><b>AI Asistan</b>
+          <select id="aiModel" class="ai-model-select" title="Kullanılacak model" aria-label="Kullanılacak model"></select>
+        </div>
+      </div>
+      <button type="button" class="ai-head-btn" id="aiNew" title="Yeni sohbet">Yeni sohbet</button>
+      <button type="button" class="modal-close" id="aiClose" title="Kapat" aria-label="Kapat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="ai-messages" id="aiMessages" aria-live="polite"></div>
+    <div class="ai-compose">
+      <textarea id="aiInput" rows="1" placeholder="Bir istek yazın… (Enter gönderir)"></textarea>
+      <button type="button" class="ai-send" id="aiSend" title="Gönder (Enter)" aria-label="Gönder">
+        <svg class="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
+        <svg class="i-stop" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+      </button>
+    </div>
+    <div class="ai-foot" id="aiFoot">Panodaki aktif işlerin özeti seçili modele gönderilir. Sohbet kaydedilmez.</div>
+  </aside>
+</div>
+
+<!-- SEÇİM ÇUBUĞU -->
+<div class="select-bar" id="selectBar">
+  <span class="select-count"><b id="selectCount">0</b> iş seçildi</span>
+  <button type="button" class="btn btn-sm btn-ghost-dark" id="btnSelectAll">Görünenlerin tümünü seç</button>
+  <button type="button" class="btn btn-sm btn-ghost-dark" id="btnSelectClear">Seçimi temizle</button>
+  <button type="button" class="btn btn-sm btn-primary" id="btnMailSelected">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+    Mail taslağı oluştur
+  </button>
+</div>
+
+<!-- TASK MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <div style="flex:1;">
+        <div class="modal-title" id="modalTitle">Yeni İş</div>
+        <div class="modal-entry-date" id="modalEntryDate"></div>
+      </div>
+      <button class="modal-close" id="modalClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="fTitle">Başlık</label>
+        <input type="text" id="fTitle" placeholder="Örn. Veri kalitesi kontrol raporu hazırlanması" />
+      </div>
+      <div class="field">
+        <label>Açıklama</label>
+        <div id="fDescEditor"></div>
+        <div class="att-list" id="attList"></div>
+        <input type="file" id="attInput" class="file-hidden" multiple />
+      </div>
+      <div class="field">
+        <label>Durum Notları</label>
+        <div class="notes-list" id="notesList"></div>
+        <div class="note-add-row">
+          <textarea id="fNoteInput" placeholder="İşin şu anki durumuna dair bir not ekleyin…"></textarea>
+          <button type="button" class="btn btn-sm" id="btnAddNote">Ekle</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Sorumlu</label>
+        <div class="seg" id="fUnitSeg"></div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="fProject">Proje (opsiyonel)</label>
+          <select id="fProject"></select>
+        </div>
+        <div class="field">
+          <label for="fStatus">Durum</label>
+          <select id="fStatus"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Öncelik</label>
+        <div class="seg" id="fPrioSeg"></div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="fStart" id="lblStart">Başlangıç Tarihi</label>
+          <div class="date-field">
+            <input type="text" id="fStart" placeholder="gg.aa.yyyy" inputmode="numeric" maxlength="10" autocomplete="off" />
+            <button type="button" class="date-pick" data-pick="fStart" title="Takvimden seç" aria-label="Takvimden seç">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+            </button>
+            <input type="date" class="date-native" id="fStartPicker" tabindex="-1" aria-hidden="true" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="fDue" id="lblDue">Bitiş / Termin Tarihi</label>
+          <div class="date-field">
+            <input type="text" id="fDue" placeholder="gg.aa.yyyy" inputmode="numeric" maxlength="10" autocomplete="off" />
+            <button type="button" class="date-pick" data-pick="fDue" title="Takvimden seç" aria-label="Takvimden seç">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+            </button>
+            <input type="date" class="date-native" id="fDuePicker" tabindex="-1" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+      <div class="field" id="backlogHint" style="display:none;">
+        <span style="font-size:11.5px; color:var(--text-faint); line-height:1.5;">Backlog ve İptal Edildi durumlarında tarih girmek zorunlu değildir. İşi Beklemede, Devam Ediyor veya Tamamlandı durumuna taşıdığınızda başlangıç ve bitiş tarihi istenecektir.</span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="btnDeleteTask" style="color:#9A3B1F; border-color:#F0B79E; display:none;">Sil</button>
+      <button class="btn" id="btnMailTask" style="display:none;" title="Kaydeder ve bu iş için Outlook mail taslağı oluşturur">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+        Mail taslağı
+      </button>
+      <div class="spacer"></div>
+      <button class="btn" id="btnCancel">Vazgeç</button>
+      <button class="btn btn-primary" id="btnSaveTask">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM / ALERT MODAL -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-head">
+      <div class="modal-title" id="confirmTitle">Emin misiniz?</div>
+    </div>
+    <div class="modal-body" style="max-height:none;">
+      <p id="confirmMessage" style="margin:0; font-size:13.5px; color:var(--text-soft); line-height:1.6;"></p>
+      <div class="field" id="confirmSelectWrap" style="display:none;">
+        <label for="confirmSelect" id="confirmSelectLabel">Aktarılacak yer</label>
+        <select id="confirmSelect"></select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="spacer"></div>
+      <button class="btn" id="confirmCancelBtn">Vazgeç</button>
+      <button class="btn btn-primary" id="confirmOkBtn">Onayla</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toastMsg">Kaydedildi</span>
+</div>
+
+<div class="overlay" id="fatalOverlay">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-head"><div class="modal-title">Sunucuya ulaşılamıyor</div></div>
+    <div class="modal-body" style="max-height:none;">
+      <p style="margin:0; font-size:13.5px; line-height:1.65; color:var(--text-soft);">
+        Veriler sunucudaki JSON dosyalarından okunuyor ama sunucu yanıt vermiyor.
+        <b>baslat.bat</b> dosyasını (veya <code>node server.js</code> komutunu) çalıştırıp sayfayı yenileyin.
+        Sunucu çalışmadan işlem yaparsanız hiçbir veri kaydedilmez, bu yüzden uygulama kilitli tutuluyor.
+      </p>
+    </div>
+    <div class="modal-foot"><div class="spacer"></div><button class="btn btn-primary" id="fatalRetry">Tekrar Dene</button></div>
+  </div>
+</div>
+
+<script src="editor.js"></script>
+<script src="eml.js"></script>
+<script src="ai-models.js"></script>
+<script src="ai.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

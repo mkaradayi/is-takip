@@ -1,0 +1,15 @@
+# Gizli anahtarlar
+.env
+data/ai-models.json
+
+# Açılış ve demo yedekleri (yerel)
+data/backup/
+
+# Atomik yazımın yarıda kalan geçici dosyaları
+*.tmp-*
+
+# Sistem / editör
+Thumbs.db
+.DS_Store
+.vscode/
+node_modules/
