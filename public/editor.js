@@ -106,7 +106,8 @@ function create(host, opts){
       if(t.sep) return '<span class="rte-sep"></span>';
       return '<button type="button" class="rte-btn" data-tool="' + i + '" title="' + t.title + '" aria-label="' + t.title + '">' + t.html + (t.label ? '<span>' + t.label + '</span>' : "") + '</button>';
     }).join("") + '</div>' +
-    '<div class="rte-area" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="İşin kapsamı, beklenen çıktı… (resim yapıştırabilirsiniz)"></div>';
+    '<div class="rte-area" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="' +
+      escText(opts.placeholder || "İşin kapsamı, beklenen çıktı… (resim yapıştırabilirsiniz)") + '"></div>';
   var area = host.querySelector(".rte-area");
   try{ document.execCommand("defaultParagraphSeparator", false, "p"); }catch(e){}
 

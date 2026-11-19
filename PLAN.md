@@ -283,3 +283,217 @@ Yeniden kullanılacak mevcut parçalar: `normalizeTask`, `normalizeNote`, `RichE
    - Asistan metnindeki `<img onerror>` çalışmamalı.
 3. **Gerçek OpenRouter:** Kullanıcı `.env`'i oluşturunca canlı bir deneme yapılacak: "Veri Ambarı projesine yarın bitecek kritik bir iş ekle" ve "gecikmiş işleri listele". gpt-oss-120b'nin araç çağrılarını doğru biçimde ürettiği kontrol edilecek. `.env` yoksa bu adım atlanacak ve bu açıkça raporlanacak.
 4. **Gerileme:** Önceki uçtan uca test seti (40 kontrol) yeniden çalıştırılacak.
+
+
+---
+
+# İş Takip — 11 Yeni İstek Planı
+
+## Context
+Kullanıcı 11 istek iletti: 2 hata (popup kapanınca veri kaybı, mailde durum notları eksik), 4 arayüz iyileştirmesi (sekmeler, dar sayaç, seçim kutusu titremesi, geniş arama), 1 işletim aracı (servis kurulumu), 1 altyapı değişikliği (SQLite), 1 saklama kuralı (7 gün) ve 2 büyük özellik (hatırlatmalar, proje sayfaları + LLM).
+
+**Alınan kararlar:**
+- ~~7 günlük sınır hem açılış yedekleri hem de arşivlenmiş işler için geçerli.~~ **Güncelleme (kullanıcı kararı):** 8. madde yalnızca yedeklerle sınırlandı; **tek yedek** tutulur. Arşivlenmiş işler otomatik silinmez.
+- Pano yalnızca sekmelerle çalışacak; sütun görünümü kalkacak.
+- Otomatik başlatma Görev Zamanlayıcı ile yapılacak.
+- LLM'e verilecek dosyalar: düz metin, Word ve PDF (PDF'te yalnızca metin katmanı okunur, en iyi çaba).
+
+**Değişmeyen ilkeler:**
+- Bağımlılık eklenmiyor. SQLite için Node 24'ün yerleşik `node:sqlite` modülü kullanılacak; denendi: v24.19.0, SQLite 3.53.3.
+- Tek yazma akışı korunuyor: `commit` → `Storage.save`, `baseUpdatedAt` ile 409.
+- `normalize*` ve `esc` kuralları korunuyor.
+- `sameOriginOk` her `/api/*` rotasında çağrılıyor.
+- API anahtarı tarayıcıya gitmiyor.
+
+**Çalışma biçimi:** İlk adımda bu plan, mevcut iki planın altına [PLAN.md](PLAN.md) içine eklenecek. Her özellik bitince:
+1. headless Chrome ile test edilecek (geçici `DATA_DIR`, port 3917) ve ekran görüntüsüyle doğrulanacak,
+2. PLAN.md'deki checklist maddesi `[x]` yapılacak,
+3. kullanıcıya **"devam edeyim mi?"** diye sorulacak.
+
+## Önem sırası (gerekçe)
+1. **Popup kapanınca veri kaybı:** kullanıcı verisi kayboluyor.
+2. **Mailde durum notları:** var olan özellik hatalı.
+3. **Arama:** küçük ve hemen fayda sağlıyor.
+4. **Seçim kutusu titremesi:** küçük bir CSS düzeltmesi.
+5. **Durum sekmeleri + dar sayaç:** ikisi aynı alanı değiştiriyor; sayaç şeridi sekmelere dönüşüyor.
+6. **Servis scriptleri:** günlük kullanım kolaylığı; koddan bağımsız.
+7. **SQLite altyapısı:** yeni veri türlerinden (hatırlatma, proje notu) **önce** yapılmalı; böylece bunlar baştan yeni altyapı üzerine kurulur.
+8. **Yedek saklama (tek yedek):** SQLite yedekleme koduyla birlikte yazılır.
+9. **Hatırlatmalar:** yeni özellik, orta büyüklükte.
+10. **Proje sayfaları + LLM:** en büyük iş; SQLite'a ve ek altyapısına dayanıyor.
+
+---
+
+## 1. Popup'ın yanlışlıkla kapanması
+**Neden:** [app.js:1519](public/app.js#L1519) `overlay.onclick` kullanılıyor. Fare tuşu modalın içinde basılıp dışarıda bırakılınca `click` olayının hedefi overlay oluyor ve modal değişiklikler kaydedilmeden kapanıyor.
+- Overlay'de `mousedown` hedefi kaydedilecek. Modal yalnızca **hem mousedown hem click** overlay'in kendisinde olursa kapanacak. Aynı düzeltme onay modalına ve yeni eklenecek modallara da uygulanacak (ortak yardımcı `bindBackdropClose(el, onClose)`).
+- **Kaydedilmemiş değişiklik koruması:** `openModal` formun ilk halinin anlık görüntüsünü (`modalSnapshot()`) alacak. Bu görüntüde başlık, editör HTML'i, tarihler, sorumlu, öncelik, proje, durum, notlar, ekler ve not kutusunda bekleyen metin yer alacak. Arka plan tıklaması, Esc ya da İptal ile kapanırken içerik değişmişse `showConfirm` ile sorulacak: "Kaydedilmemiş değişiklikler var — Vazgeç / Kaydetmeden kapat".
+
+## 2. Mailde durum notları
+**Bulgular:** `mailTaskHtml` / `mailTaskText` ([app.js:1036](public/app.js#L1036)) yalnızca **son 3 notu** ekliyor. Ayrıca modalda not kutusuna yazılıp "Ekle"ye basılmamış metin, "Mail taslağı" ya da "Kaydet" ile **sessizce kayboluyor**. Kullanıcının gördüğü sorun büyük olasılıkla bu ikincisi.
+- `saveTask`, not kutusunda bekleyen metni önce `addNote()` ile nota çevirecek; böylece kaydetme ve mail sırasında not kaybolmayacak.
+- Mailde **tüm notlar** yer alacak (yeniden eskiye, tarih ve metinle). Başlık "Durum notları (N)" olacak. Notlardaki satır sonları korunacak.
+- Doğrulama: üretilen `.eml` Node'da ayrıştırılıp notların HTML ve düz metin gövdede bulunduğu kontrol edilecek.
+
+## 3. Arama: açıklama ve durum notları
+- `filteredTasks` ([app.js:381](public/app.js#L381)) arama yaparken `title + description + notes[].text` alanlarına bakacak. Karşılaştırma `toLocaleLowerCase("tr")` ile yapılacak (İ/ı sorunu olmasın).
+- Arşiv araması da aynı yardımcıyı (`taskMatches(t, q)`) kullanacak.
+- Arama kutusunun yer tutucu metni: "Başlık, açıklama, notlarda ara…".
+
+## 4. Seçim kutusu titremesi
+**Neden:** `.card-check` ve `.col-check` için `display:none ↔ flex` geçişi yapılıyor ([style.css:286-307](public/style.css#L286)). Kutu görünüp kaybolunca başlık metni 23 px kayıyor; sütunda da renk noktasının yerini kutu alıyor.
+- Kutunun yeri her zaman ayrılacak: `display:flex` + `opacity:0; pointer-events:none` olacak. Fareyle üzerine gelince ya da seçim varken `opacity:1` olacak ve `transition` ile yumuşakça görünecek. Böylece yerleşim değişmeyecek.
+- Kart başlığında kutu ile renk noktası üst üste değil yan yana duracak (sabit genişlik).
+- Sekmeli düzende (madde 5) "tümünü seç" kutusu sekme içeriğinin üst çubuğuna taşınacak.
+
+## 5. Durum sekmeleri + dar sayaç alanı
+- Geniş pipeline şeridi (`renderPipeline`, `.pipe-node` en az 130 px, 22 px sayılar) **sekme çubuğuna** dönüşecek. Her sekme tek satır olacak: `● Backlog 5`. Sekmeler kompakt (yaklaşık 36 px yükseklik), içerik genişliğinde ve sola yaslı olacak.
+- `state.statusTab` mevcut `pipelineFilter`'ın yerini alacak. Her zaman bir sekme seçili olacak. Son seçilen sekme `localStorage`'da (`isTakip.statusTab`) tutulacak.
+- Sekme sayıları filtrelere (sorumlu, öncelik, proje, arama, uyarı) göre güncellenecek. Arama yapılırken eşleşme olan diğer sekmeler vurgulanacak.
+- **İçerik:** seçili durumun işleri, duyarlı bir kart ızgarasında (`grid-template-columns: repeat(auto-fill, minmax(280px,1fr))`) gösterilecek. Sıralama bugünkü gibi öncelik, sonra termin. Üstte ince bir çubuk olacak: "tümünü seç" kutusu + "N iş".
+- **Sürükle-bırak:** kart bir **sekmenin üzerine** bırakıldığında durumu değişecek (mevcut `moveTask` ve tarih kuralı kullanılıyor). Sürükleme sırasında sekmeler bırakma hedefi olarak vurgulanacak.
+- `toggleColumn` → `toggleTab` olacak. Uyarı rozetine tıklanınca etkilenen işler başka sekmedeyse, o grubun iş sayısı sekmelerde rozetle gösterilecek.
+- Dar ekranda sekme çubuğu yatay kaydırılabilecek.
+- AI tarafı `pipelineFilter`'a bağlı değil; etkilenmiyor.
+
+## 6. Servis (otomatik başlatma) scriptleri
+Yeni klasör `servis/`, içinde Görev Zamanlayıcı kullanan ve yönetici izni gerektirmeyen dosyalar:
+- `servis-kur.bat` → PowerShell `servis.ps1 -Kur`:
+  - Node yolunu ve sürümünü (≥ 22.13) doğrular.
+  - `Register-ScheduledTask` ile "IsTakip" görevini oluşturur:
+    - tetikleyici: oturum açılışı (geçerli kullanıcı),
+    - eylem: `node.exe server.js` (çalışma klasörü proje kökü, gizli pencere),
+    - ayarlar: çökerse 1 dakikada bir yeniden başlat (3 kez), süre sınırı yok, pilde de çalış.
+  - Görevi hemen başlatır ve `http://localhost:3000` adresinin yanıt verdiğini kontrol eder.
+- `servis-kaldir.bat`: görevi durdurur, çalışan `node server.js` sürecini (komut satırı ile eşleştirerek) kapatır ve görevi siler.
+- `servis-durum.bat`: görev durumu, son çalışma sonucu ve portun yanıt verip vermediği.
+- Loglama: sunucu çıktısı `data/../logs/server.log` dosyasına yönlendirilir (sarmalayıcı `servis/calistir.cmd`; log 5 MB'ı aşınca döndürülür). `logs/` `.gitignore`'a eklenecek.
+- `baslat.bat`: servis zaten çalışıyorsa yalnızca tarayıcıyı açacak (port kontrolü), yeni sunucu başlatmayacak.
+- README'ye "Otomatik başlatma" bölümü eklenecek.
+
+## 7. SQLite altyapısı
+**Yaklaşım:** İstemci API'si aynı kalıyor (`GET /api/state`, `PUT /api/<tür>` + `baseUpdatedAt`). Böylece `Storage`, `commit` ve çakışma kontrolü değişmiyor; değişiklik büyük ölçüde [server.js](server.js) içinde.
+- `const { DatabaseSync } = require("node:sqlite")`, dosya `data/is-takip.db`.
+  - `PRAGMA journal_mode=DELETE; synchronous=FULL; foreign_keys=ON`. (Uygulama sırasında WAL yerine DELETE seçildi: süreç zorla kapatılınca WAL kipinde veri `-wal` dosyasında kalıyor ve `.db` tek başına eksik görünüyordu. `data/` git'te izlendiği için bu önemli.)
+  - Açılışta `PRAGMA integrity_check`; bozuksa sunucu açık bir hatayla durur.
+- **Şema (v1):**
+  - `meta(kind TEXT PRIMARY KEY, updated_at TEXT NOT NULL)`: türlerin sürüm damgası (409 için).
+  - `items(rowid, kind TEXT NOT NULL, id TEXT, pos INTEGER NOT NULL, data TEXT NOT NULL)` + `INDEX(kind,pos)`: her kayıt bir JSON belge. Sıra `pos` ile korunuyor. Tür listesi `KINDS` (sonradan `reminders` ve `projectNotes` eklenecek).
+  - `attachments(id TEXT PRIMARY KEY, name, type, size, uploaded_at)`: ek bilgileri. **Dosya içeriği diskte kalıyor** (`data/attachments/<id>`), çünkü büyük ikili veriler DB'yi ve her yedeği şişirir.
+  - `att_text(id PRIMARY KEY, text, status, extracted_at)`: LLM için çıkarılmış metin önbelleği (madde 10).
+  - `schema_version` için `PRAGMA user_version`.
+- `readKindFull` / `writeKind` SQL'e taşınacak. `writeKind` tek bir `BEGIN IMMEDIATE` işleminde şunları yapacak: sürüm kontrolü → `DELETE kind` → toplu `INSERT` → `meta` güncellemesi. Kuyruğa ve `renameWithRetry`'a artık gerek kalmıyor (eklerde ve `ai-models.json`'da kullanılmaya devam ediyor).
+- **Göç (bir kerelik, otomatik):** DB boşsa ve `data/*.json` dosyaları varsa:
+  - hepsi tek işlemde içe aktarılacak (`updatedAt` korunacak),
+  - `attachments/*.json` dosyaları tabloya alınacak,
+  - özgün JSON dosyaları `data/json-yedek-<zaman>/` klasörüne **taşınacak**, silinmeyecek,
+  - logda "N iş, M proje göç edildi" yazacak.
+  - JSON dosyaları bozuksa göç yapılmayacak ve sunucu durup hatayı gösterecek.
+- `ai-models.json` (gizli anahtarlar) **dosya olarak kalacak**; yedeğe girmemesi kuralı korunuyor.
+- **Yedek:** açılışta (`listen` sonrası) `VACUUM INTO 'backup/<zaman>.db'` ile tutarlı tek dosyalık bir yedek alınacak. Eski klasör yedekleri okunmaya devam edecek, temizlik kuralı her ikisine de uygulanacak (madde 8).
+- Sahipsiz ek temizliği, ekleri DB'deki `tasks`, `archive` ve (sonra) `projectNotes` kayıtlarından toplayacak.
+- `tools/demo-veri.js`: JSON dosyalarını kopyalayarak aldığı yedek, DB yedeği alacak şekilde (`VACUUM INTO` ile ya da sunucudaki yeni `POST /api/backup` rotası, `sameOriginOk` ile) güncellenecek.
+- `baslat.bat` ve servis betiği Node ≥ 22.13 olduğunu kontrol edecek.
+- **Not:** `data/` git'te izleniyor; artık `is-takip.db` ikili dosyası izlenecek. `*.db-wal` ve `*.db-shm` `.gitignore`'a eklenecek.
+
+## 8. Yedek saklama: yalnızca tek yedek
+**Karar değişikliği:** Kullanıcı bu maddeyi "yalnızca 1 yedek tutacak şekilde" sınırladı. 7 günlük saklama ve arşivlenmiş işlerin otomatik silinmesi **yapılmayacak**; arşivdeki işler süresiz kalır.
+- `KEEP_BACKUPS = 30` kaldırıldı. Yeni yedek (`VACUUM INTO`) **başarıyla alındıktan sonra** `data/backup/` içindeki diğer tüm yedekler silinir: eski `.db` dosyaları, JSON dönemi klasörleri ve `demo-oncesi-*` dahil. Yedek alınamazsa eskilere dokunulmaz.
+- Kural hem açılış yedeğinde hem `POST /api/backup` ile alınan yedekte (demo betiği) geçerli.
+- Boş veritabanının yedeği alınmaz; bu durumda eski yedekler korunur.
+- `backup/` içindeki yedek olmayan dosyalara (klasör ya da `.db` dışındakiler) dokunulmaz.
+
+## 9. Hatırlatmalar / kişisel notlar
+**Güncelleme (kullanıcı isteği):** Hatırlatmalar ve kişisel notlar **ayrıldı**. Tarih yalnızca hatırlatmalarda var.
+- **Notlarım** ayrı sayfa ve ayrı tür: `memos` `{ id, text (≤5000), taskId, createdAt, updatedAt }` (`normalizeMemo`). Tarih/saat alanı yok; zamanlar otomatik tutulur, liste en son güncellenen başta. Arama (metin + bağlı iş başlığı), satır içi düzenleme (değişiklik yoksa zaman güncellenmez), silme, isteğe bağlı iş bağlantısı. Enter yeni satır, Ctrl+Enter ekler/kaydeder. Kodda adı `memos`, çünkü işlerdeki "durum notları" alanı `notes`.
+- İş penceresindeki bölüm "Hatırlatmalar ve notlarım" oldu: bağlı hatırlatmalar + notlar, "Hatırlatma ekle" / "Not ekle" butonları.
+- Yedek dışa ve içe aktarmaya `memos` eklendi; eski sunucu uyarısı `meta.memos`'u da kontrol ediyor.
+
+- Yeni tür `reminders`: `{ id, text (≤2000), date (ISO, zorunlu), time ("HH:MM" | ""), taskId ("" | id), done, doneAt, createdAt }`. `normalizeReminder` yazılacak (`SAFE_ID`, tarih ve saat doğrulamasıyla). Sunucuda `KINDS` ve rota regex'i genişletilecek; yedek dışa ve içe aktarmaya eklenecek.
+- **Görünüm:** kenar çubuğuna "Hatırlatmalar" sekmesi gelecek (Pano · Projeler · Hatırlatmalar · Arşiv · Ayarlar).
+  - Üstte hızlı ekleme satırı: metin, gg.aa.yyyy tarih (mevcut maske ve takvim butonu yeniden kullanılıyor), opsiyonel saat, opsiyonel "İşe bağla" (aktif işlerden aranabilir bir seçici).
+  - Liste gruplara ayrılacak: Gecikmiş / Bugün / Yaklaşan (7 gün) / Daha sonra / Tamamlanan (katlanır).
+  - Her satırda tamamlama kutusu, metin, tarih ve saat, bağlı iş çipi (tıklayınca iş modalı açılıyor; iş arşivdeyse "(arşivde)", silinmişse "(silinmiş iş)" yazıyor), düzenleme (satır içi) ve silme bulunacak.
+- **Uyarı şeridi:** bugün ve gecikmiş hatırlatmalar için "🔔 N Hatırlatma" rozeti olacak; tıklayınca Hatırlatmalar sayfası açılacak.
+- **Saatli hatırlatma:** sayfa açıkken dakikada bir kontrol edilecek; saati gelen hatırlatma için toast ve (izin verilmişse) tarayıcı `Notification` gösterilecek. Tekrar bildirmemek için bildirilenler oturum belleğinde tutulacak.
+- **İş bağlantısı:** iş kartında aktif hatırlatma varsa zil simgesi olacak. İş modalında "Hatırlatmalar" bölümü bağlı hatırlatmaları listeleyecek; "Hatırlatma ekle" butonu Hatırlatmalar sayfasını o iş seçili halde açacak.
+- AI asistanı bu aşamada hatırlatmalara dokunmayacak; ileride eklenebilir.
+
+## 10. Proje sayfaları + LLM
+**Veri:** yeni tür `projectNotes`: `{ id, projectId, title, html, text, attachments[], createdAt, updatedAt }`. `html` `RichEditor.sanitize`'dan, `text` `toPlain` ile türetilecek. `normalizeProjectNote` yazılacak. Proje silinince notlarının aktarılacağı yer sorulacak ya da notlar silinecek (mevcut `deleteProject` diyaloğu genişletiliyor).
+
+**Görünüm:** kenar çubuğuna "Projeler" sekmesi gelecek.
+- **Liste:** proje kartları (renk, aktif iş sayısı, gecikmiş sayısı, not ve dosya sayısı); arşivlenmiş projeler ayrı bir grupta.
+- **Proje detayı:**
+  - Başlık + geri dön butonu.
+  - **İşler** özeti: duruma göre sayılar; tıklanınca o proje filtresiyle panoya gidiliyor.
+  - **Notlar:** yeniden eskiye kart listesi; içinde arama var.
+  - **Dosyalar:** notlardaki tüm ekler (ad, boyut, çıkarılan metin durumu: ✓ okunabilir / ⚠ kısmi / ✗ okunamadı).
+  - **Proje asistanı** paneli.
+- **Not editörü:** ayrı bir modal (madde 1'deki kapanma korumasıyla). İçinde başlık, `RichEditor` (ikinci örnek; `editor.js` birden fazla örneği desteklemiyorsa küçük bir düzenleme yapılacak), ekler (mevcut `addFiles` / `uploadImage` mantığı genelleştirilecek) ve resim yapıştırma bulunacak.
+
+**Metin çıkarma** (sunucu, bağımlılıksız; sonuç `att_text` tablosunda önbelleğe alınıyor, dosya başına en fazla 200 bin karakter):
+- txt / md / csv / json / log: UTF-8 (BOM temizlenerek); geçersizse Windows-1254 ile `TextDecoder`.
+- html / eml: etiketler ve başlıklar ayıklanacak; eml'de `text/plain` parçası, quoted-printable ve base64 çözülecek.
+- docx: ZIP merkez dizini elle okunacak → `word/document.xml` → `zlib.inflateRawSync` → `w:p` paragraflarına göre metin.
+- pdf (en iyi çaba): `FlateDecode` akışları açılacak; `BT…ET` içindeki `Tj` / `TJ` / `'` / `"` metinleri ve kaçış dizileri çözülecek. Okunabilir karakter oranı düşükse "metin çıkarılamadı (taranmış ya da özel fontlu PDF)" olarak işaretlenecek.
+- Diğer türler: LLM'e yalnızca dosya adı gidecek.
+
+**LLM uç noktası:** `POST /api/ai/project`, `sameOriginOk` ile, 1 MB gövde sınırı. İstek: `{ projectId, question, noteIds?, attIds?, includeTasks, history[], modelId }`.
+- Bağlamı **sunucu kendisi DB'den kuruyor** (istemciden metin almıyor): proje adı, seçilen notların metinleri, dosyaların çıkarılmış metinleri, opsiyonel olarak projenin işlerinin özeti.
+- Bütçe: yerleşik OpenRouter modeli için yaklaşık 150 bin karakter, yerel modeller için yaklaşık 40 bin. Aşılırsa eski notlar ve büyük dosyalar orantılı kırpılacak; yanıtta `{ truncated, used: [...] }` dönecek ve arayüz "şu kaynaklar kısaltıldı" diyecek.
+- Araç yok; sistem mesajı şunu söyleyecek: "yalnızca verilen kaynaklara dayan, kaynak adını belirt, bilmiyorsan söyle". Mevcut `resolveModel` / `aiHeaders` / `netError` / `stripThink` ve hata eşleme yeniden kullanılacak. Zaman aşımı mevcut değerlerle aynı.
+- **Asistan paneli:**
+  - kaynak seçimi (notlar ve dosyalar için onay kutuları, "Tümü" varsayılan; işler dahil mi?),
+  - hızlı butonlar: "Özet çıkar", "Açık konular / riskler", "Kararlar ve aksiyonlar",
+  - serbest soru kutusu ve model seçici (panodaki seçimle aynı `localStorage` anahtarı),
+  - sohbet yalnızca bellekte tutuluyor,
+  - yanıtlar `ai.js`'teki güvenli biçimlendirici ile gösteriliyor (biçimlendirici ortak hale getirilecek: `AiChat.format`),
+  - **"Yanıtı nota kaydet"** butonu yanıtı yeni bir proje notu olarak kaydediyor.
+- **Gizlilik:** README'ye eklenecek; ayrıca panelde "Seçilen notlar ve dosya içerikleri seçili modele gönderilir" uyarısı olacak.
+
+---
+
+## Değişecek / eklenecek dosyalar
+- [server.js](server.js): SQLite katmanı, göç, tek yedek kuralı, yeni türler, metin çıkarma, `/api/ai/project`, ek bilgilerinin tabloya alınması
+- [public/app.js](public/app.js): modal koruması, mail notları, arama, sekmeler, hatırlatmalar, proje sayfaları
+- [public/index.html](public/index.html), [public/style.css](public/style.css): sekme çubuğu, yeni görünümler, not modalı, seçim kutusu stili
+- [public/editor.js](public/editor.js): gerekirse çoklu örnek desteği
+- [public/ai.js](public/ai.js): ortak biçimlendiricinin dışa açılması
+- Yeni: `servis/servis.ps1`, `servis-kur.bat`, `servis-kaldir.bat`, `servis-durum.bat`, `calistir.cmd`
+- [tools/demo-veri.js](tools/demo-veri.js), `baslat.bat`, `.gitignore`, [README.md](README.md), [CLAUDE.md](CLAUDE.md) (SQLite, yeni türler, servis; "Git deposu değil" bilgisi düzeltilecek), [PLAN.md](PLAN.md)
+
+Yeniden kullanılacaklar: `esc`, `uid`, `safeId`, `HEX_COLOR`, `normalizeTask` / `normalizeNote` / `normalizeAttachment`, `commit`, `Storage.save` / `upload`, `showConfirm` / `showInfo` / `toast`, `trToISO` / `isoToTR` / tarih maskesi ve takvim butonu, `RichEditor.sanitize` / `toPlain` / `fromPlain`, `moveTask` / `needsDates`, `urgency` / `daysBetween`, `resolveModel` / `aiHeaders` / `netError` / `stripThink`, `sameOriginOk` / `readBody` / `send`, `writeFileAtomic`.
+
+---
+
+## Checklist (PLAN.md'ye eklenecek; her madde bitince işaretlenip kullanıcıya sorulacak)
+- [x] 0. Bu plan PLAN.md'ye eklendi
+- [x] 1. Popup koruması: mousedown/click düzeltmesi + kaydedilmemiş değişiklik onayı (iş modalı, onay modalı)
+- [x] 2. Mail: bekleyen not otomatik ekleniyor; tüm durum notları HTML ve düz metinde; eml ayrıştırma testi
+- [x] 3. Arama: başlık + açıklama + notlar (tr küçük harf); arşivde de
+- [x] 4. Seçim kutuları yerleşimi kaydırmıyor (opacity, sabit yer)
+- [x] 5. Durum sekmeleri (dar, sayılı, filtreye duyarlı), kart ızgarası, sekmeye sürükle-bırak, tümünü seç
+- [x] 6. Servis betikleri: kur / kaldır / durum, loglama, `baslat.bat` port kontrolü, README
+- [x] 7. SQLite: şema, okuma/yazma + 409, JSON'dan otomatik göç (JSON'lar taşınıyor), ek bilgileri tabloda, `VACUUM INTO` yedeği, demo betiği, Node sürüm kontrolü
+- [x] 8. Tek yedek: yeni yedek alınınca diğer yedekler silinir (açılış + `/api/backup`); boş DB'de eskiler korunur. (Arşiv otomatik silme kullanıcı kararıyla kaldırıldı.)
+- [x] 9. Hatırlatmalar: tür + normalize, sayfa, gruplar, iş bağlantısı, uyarı rozeti, saatli bildirim, kart zil simgesi, modal bölümü
+- [x] 9b. Notlarım (tarihsiz kişisel notlar) hatırlatmalardan ayrıldı: `memos` türü, ayrı sayfa, arama, düzenleme, iş bağlantısı, iş penceresi, yedek
+- [x] 10a. Proje sayfaları: liste, detay, not modalı (editör + ekler), dosya listesi, proje silme davranışı, sahipsiz ek temizliğine `projectNotes`'un eklenmesi
+- [x] 10b. Metin çıkarma (txt/html/eml/docx/pdf) + önbellek
+- [x] 10c. `/api/ai/project` + asistan paneli (kaynak seçimi, hızlı butonlar, nota kaydet) + canlı model denemesi
+- [x] 11. README + CLAUDE.md güncellemesi; tam gerileme testi (254/254)
+
+## Doğrulama
+Bütün testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome + CDP üzerinden yapılacak; JS hataları `Runtime.exceptionThrown` ile toplanacak, sonuçlar ekran görüntüsüyle doğrulanacak. Gerçek `data/` klasörüne dokunulmayacak.
+1. **Popup:** modal içinde mousedown + overlay üzerinde mouseup → modal açık kalmalı. Değişiklik yapılıp Esc'ye basılınca onay çıkmalı; değişiklik yokken doğrudan kapanmalı.
+2. **Mail:** 5 notlu bir iş + kutuda bekleyen not → `.eml` ayrıştırılınca 6 notun hepsi HTML ve düz metinde bulunmalı.
+3. **Arama:** yalnızca notta geçen bir kelime ve "İSTANBUL" ile "istanbul" eşleşmesi.
+4. **Seçim kutusu:** hover öncesi ve sonrası `card-title` öğesinin `getBoundingClientRect().left` değeri aynı olmalı.
+5. **Sekmeler:** sekme sayıları filtreyle değişmeli; kart sekmeye bırakılınca durumu değişmeli; tarihsiz iş Devam'a bırakılınca modal açılmalı; dar ekran görüntüsü alınacak.
+6. **Servis:** kur → görev listede ve port 3000 yanıt veriyor; kaldır → görev de süreç de yok. Bu test kullanıcının makinesinde görev oluşturduğu için **kullanıcının onayıyla** yapılacak (test görev adıyla ve 3917 portuyla).
+7. **SQLite:** demo JSON verisi olan bir klasörde açılış → göç yapılmalı, JSON'lar `json-yedek-*` klasörüne taşınmalı, arayüz aynı veriyi göstermeli. İki sekmede 409. `VACUUM INTO` yedeği açılabilmeli. Bozuk JSON'da göç yapılmamalı.
+8. **Tek yedek:** sahte eski yedekler (JSON klasörü, eski `.db`, `demo-oncesi-*.db`) + yedek olmayan dosya → açılıştan sonra yalnızca yeni yedek ve yedek olmayan dosya kalmalı; boş DB'de eskiler korunmalı; `/api/backup` sonrası yine tek yedek.
+9. **Hatırlatmalar:** ekle / tamamla / düzenle / sil; işe bağlı hatırlatmadan modal açılmalı; bugün tarihli hatırlatma uyarı rozetinde görünmeli; 1 dakika sonrasına saatli hatırlatma → toast.
+10. **Proje:** not + docx + pdf + txt ekle → çıkarma durumları doğru görünmeli. Sahte LLM sunucusuna giden istekte kaynak metinleri bulunmalı, `apiKey` bulunmamalı. Kırpma uyarısı gösterilmeli. Gerçek modelle kısa bir özet denemesi yapılacak.
+11. **Gerileme:** arşivleme, geri alma, AI araçları ve Geri al, içe/dışa aktarma (yeni türler dahil), çakışma, yanlış Host/Origin → 403, XSS yükleri.

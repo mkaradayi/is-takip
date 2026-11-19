@@ -13,3 +13,12 @@ Thumbs.db
 .DS_Store
 .vscode/
 node_modules/
+
+# Servis (otomatik başlatma) logları
+logs/
+
+# SQLite çalışma dosyaları ve JSON göç yedeği (yerel)
+*.db-wal
+*.db-shm
+*.db-journal
+data/json-yedek-*/

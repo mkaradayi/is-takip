@@ -1,0 +1,7 @@
+# Veri klasörü ikili kabul edilir: Git'in satır sonu dönüşümü (core.autocrlf) ekleri ve veritabanını bozmasın
+data/** -text -diff
+*.db binary
+*.pdf binary
+*.docx binary
+*.png binary
+*.jpg binary

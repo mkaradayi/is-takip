@@ -3,7 +3,7 @@
      node tools/demo-veri.js          → demo projeleri, işleri ve arşiv kayıtlarını ekler (mevcut verinize dokunmaz)
      node tools/demo-veri.js --sil    → yalnızca demo kayıtlarını (id'si "demo-" ile başlayanlar) kaldırır
    Seçenekler: PORT (varsayılan 3000), DATA_DIR (sunucuyla aynı veri klasörü; yedeğin yazılacağı yer).
-   Yazmadan önce mevcut veri data/backup/demo-oncesi-<zaman>/ klasörüne yedeklenir.
+   Yazmadan önce sunucudan veritabanı yedeği alınır: data/backup/demo-oncesi-<zaman>.db (eski sunucuda JSON klasörü).
    Tarihler bugüne göre hesaplanır; böylece her zaman gecikmiş / bugün / yaklaşan işler bulunur. */
 "use strict";
 const fs = require("fs");
@@ -73,13 +73,20 @@ async function put(kind, items, base){
 (async () => {
   let state;
   try{ state = await api("/api/state"); }
-  catch(e){ console.error("Sunucuya ulaşılamadı (" + BASE + "). Önce baslat.bat ile uygulamayı açın.\n  " + e.message); process.exit(1); }
+  catch(e){ console.error("Sunucuya ulaşılamadı (" + BASE + "). Önce sunucuyu açın (servis\\servis-kur.bat ya da node server.js).\n  " + e.message); process.exit(1); }
 
-  const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, "..", "data");
-  const dir = path.join(dataDir, "backup", "demo-oncesi-" + stamp);
-  fs.mkdirSync(dir, { recursive: true });
-  for(const k of ["tasks", "projects", "archive", "units"]) fs.writeFileSync(path.join(dir, k + ".json"), JSON.stringify({ items: state[k] || [] }, null, 2));
-  console.log("Yedek alındı: " + dir);
+  /* Önce sunucudan veritabanı yedeği iste (data/backup/demo-oncesi-<zaman>.db); eski (JSON) sunucuda bu rota yoksa
+     API'den okunan veriyi JSON olarak yedekle. */
+  try{
+    const b = await api("/api/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: "demo-oncesi" }) });
+    console.log("Yedek alındı: data/" + b.file.replace(/\\/g, "/"));
+  }catch(e){
+    const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, "..", "data");
+    const dir = path.join(dataDir, "backup", "demo-oncesi-" + stamp);
+    fs.mkdirSync(dir, { recursive: true });
+    for(const k of ["tasks", "projects", "archive", "units"]) fs.writeFileSync(path.join(dir, k + ".json"), JSON.stringify({ items: state[k] || [] }, null, 2));
+    console.log("Yedek alındı (JSON): " + dir);
+  }
 
   const keep = k => (state[k] || []).filter(x => !isDemo(x));
   let tasks = keep("tasks"), projects = keep("projects"), archive = keep("archive");

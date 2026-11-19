@@ -1,16 +1,18 @@
 /* İş Takip — minimal yerel sunucu.
    Bağımlılık yok (sadece Node.js yerleşik modülleri).
    - public/ klasörünü sunar
-   - /api/state  (GET)  → tasks + projects + archive + units
-   - /api/:kind  (PUT)  → kind: tasks | projects | archive | units, gövde: { items: [...] }
+   - /api/state  (GET)  → tasks + projects + archive + units + reminders + memos (kişisel notlar) + projectNotes
+   - /api/:kind  (PUT)  → kind: tasks | projects | archive | units | reminders | memos | projectNotes, gövde: { items: [...], baseUpdatedAt }
    - /api/attachments      (POST) → ham dosya gövdesi, X-File-Name başlığı → { id, name, size, type }
    - /api/attachments/:id  (GET)  → ek dosyasını indirir
    - /api/ai/chat          (POST) → { messages, board, modelId } → seçilen modele (OpenRouter ya da OpenAI uyumlu yerel sunucu) aracılık eder.
    - /api/ai/models        (GET/PUT) → kayıtlı AI modelleri (anahtarlar tarayıcıya gönderilmez)
    - /api/ai/models/test   (POST) → { baseUrl, apiKey?, id? } → sunucunun /models listesini döndürür
      Araçları (kart oluştur/düzenle/taşı) tarayıcı çalıştırır; anahtar yalnızca sunucuda kalır.
-   Veriler data/*.json dosyalarına atomik olarak yazılır (önce geçici dosya, sonra yeniden adlandırma).
-   Ekler data/attachments/ altında durur.
+   - /api/backup           (POST) → { label? } → veritabanının anlık yedeği (data/backup/<label>-<zaman>.db)
+   Veriler data/is-takip.db SQLite veritabanında durur (Node'un yerleşik node:sqlite modülü). İlk açılışta eski
+   data/*.json dosyaları otomatik içe aktarılır ve data/json-yedek-<zaman>/ klasörüne taşınır.
+   Ek dosyaları data/attachments/ altında, bilgileri veritabanında durur.
    Sunucu yalnızca bu bilgisayardan (127.0.0.1) erişilebilir. */
 
 "use strict";
@@ -18,6 +20,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { extract, VERSION: EXTRACT_VERSION } = require("./extract");
 
 /* .env (bağımlılıksız): KEY=VALUE satırları; # yorum; tırnaklar soyulur. Ortamda zaten olan değer korunur. */
 function loadEnv(file){
@@ -41,11 +44,9 @@ const PUBLIC_DIR = path.join(ROOT, "public");
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(ROOT, "data");
 const BACKUP_DIR = path.join(DATA_DIR, "backup");
 const ATT_DIR = path.join(DATA_DIR, "attachments");
-const KINDS = ["tasks", "projects", "archive", "units"];
-const SCHEMA_VERSION = 1;
+const KINDS = ["tasks", "projects", "archive", "units", "reminders", "memos", "projectNotes"];
 const MAX_BODY = 10 * 1024 * 1024;
 const MAX_UPLOAD = 25 * 1024 * 1024;
-const KEEP_BACKUPS = 30;
 const ORPHAN_AGE_MS = 24 * 60 * 60 * 1000;
 const SAFE_ID = /^[\w-]{1,64}$/;
 /* Tarayıcıda satır içi gösterilmesi güvenli türler; geri kalan her şey indirme olarak sunulur (HTML/SVG çalıştırılmaz). */
@@ -63,20 +64,145 @@ const MIME = {
 
 fs.mkdirSync(ATT_DIR, { recursive: true });
 
-function filePath(kind){ return path.join(DATA_DIR, kind + ".json"); }
+/* ---------- SQLite (Node'un yerleşik node:sqlite modülü; bağımlılık yok) ---------- */
+let DatabaseSync;
+try{ ({ DatabaseSync } = require("node:sqlite")); }
+catch(e){
+  console.error("Bu Node.js sürümü (" + process.version + ") yerleşik SQLite içermiyor. En az Node.js 22.13 gerekli: https://nodejs.org");
+  process.exit(1);
+}
+const DB_FILE = path.join(DATA_DIR, "is-takip.db");
+const DB_VERSION = 1;
+/* Veritabanı, port başarıyla açıldıktan SONRA açılır (bkz. startStorage). Böylece aynı portta eski bir sunucu
+   çalışırken JSON'dan göç yapılmaz; o sunucu JSON'a yazmaya devam edip verinin ikiye bölünmesine yol açamaz. */
+let db = null;
+
+function openDb(){
+  const d = new DatabaseSync(DB_FILE);
+  /* WAL yerine klasik günlük (DELETE): her kayıttan sonra .db dosyasının kendisi tam ve tutarlıdır.
+     (WAL'da süreç zorla kapatılınca veri -wal dosyasında kalır; .db tek başına kopyalanırsa/git'e girerse eksik olur.
+     Tek kullanıcılı bu uygulamada WAL'ın eşzamanlılık avantajına ihtiyaç yok.) */
+  d.exec("PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+  const chk = d.prepare("PRAGMA quick_check").get();
+  if(!chk || Object.values(chk)[0] !== "ok"){
+    d.close();
+    throw new Error("Veritabanı bozuk görünüyor (" + JSON.stringify(chk) + "). data/backup içindeki en son .db yedeğini data/is-takip.db adıyla geri koyun.");
+  }
+  d.exec(`
+    CREATE TABLE IF NOT EXISTS meta(kind TEXT PRIMARY KEY, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS items(kind TEXT NOT NULL, pos INTEGER NOT NULL, id TEXT, data TEXT NOT NULL, PRIMARY KEY(kind, pos));
+    CREATE INDEX IF NOT EXISTS items_kind_id ON items(kind, id);
+    CREATE TABLE IF NOT EXISTS attachments(id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL, size INTEGER NOT NULL, uploaded_at TEXT NOT NULL DEFAULT '');
+    CREATE TABLE IF NOT EXISTS att_text(id TEXT PRIMARY KEY, text TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, extracted_at TEXT NOT NULL);
+  `);
+  const v = d.prepare("PRAGMA user_version").get().user_version;
+  if(v > DB_VERSION){ d.close(); throw new Error("Veritabanı bu uygulamadan daha yeni bir sürümle oluşturulmuş (şema " + v + ")."); }
+  if(v < DB_VERSION) d.exec("PRAGMA user_version = " + DB_VERSION);
+  return d;
+}
+/* Tek işlem: hepsi ya yazılır ya hiçbiri */
+function tx(fn){
+  db.exec("BEGIN IMMEDIATE");
+  try{ const r = fn(); db.exec("COMMIT"); return r; }
+  catch(e){ try{ db.exec("ROLLBACK"); }catch(_){} throw e; }
+}
+function stamp(){
+  const d = new Date(), pad = n => String(n).padStart(2, "0");
+  return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + "-" + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+}
 
 /* ---------- Okuma ---------- */
 /* { items, updatedAt } döner. updatedAt, istemcinin çakışma kontrolü için kullandığı sürüm damgasıdır. */
 function readKindFull(kind){
-  const p = filePath(kind);
-  if(!fs.existsSync(p)) return { items: [], updatedAt: "" };
-  const text = fs.readFileSync(p, "utf8").replace(/^﻿/, "").trim();
-  if(!text) return { items: [], updatedAt: "" };
-  const data = JSON.parse(text); // bozuksa hata fırlatır; sessizce boş dönmeyiz
-  if(Array.isArray(data)) return { items: data, updatedAt: "" };   // eski/elle yazılmış düz dizi
-  if(data && Array.isArray(data.items)) return { items: data.items, updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : "" };
-  throw new Error(kind + ".json beklenen biçimde değil");
+  const m = db.prepare("SELECT updated_at FROM meta WHERE kind = ?").get(kind);
+  const rows = db.prepare("SELECT data FROM items WHERE kind = ? ORDER BY pos").all(kind);
+  return { items: rows.map(r => JSON.parse(r.data)), updatedAt: m ? m.updated_at : "" };
 }
+
+/* ---------- Yazma ---------- */
+/* Bir türün tüm kayıtlarını değiştirir (işlem içinde çağrılmalı) */
+function putItems(kind, items, updatedAt){
+  db.prepare("DELETE FROM items WHERE kind = ?").run(kind);
+  const ins = db.prepare("INSERT INTO items(kind, pos, id, data) VALUES (?, ?, ?, ?)");
+  items.forEach((it, i) => ins.run(kind, i, typeof it.id === "string" ? it.id : null, JSON.stringify(it)));
+  db.prepare("INSERT INTO meta(kind, updated_at) VALUES (?, ?) ON CONFLICT(kind) DO UPDATE SET updated_at = excluded.updated_at").run(kind, updatedAt);
+}
+/* baseUpdatedAt verilmişse ve kayıtlı sürümle uyuşmuyorsa (başka sekme/pencere yazmış) 409 ile reddeder.
+   Eski arayüzle uyum için Promise döner; işin kendisi senkron ve tek işlemdir. */
+function writeKind(kind, items, baseUpdatedAt){
+  try{
+    return Promise.resolve(tx(() => {
+      const m = db.prepare("SELECT updated_at FROM meta WHERE kind = ?").get(kind);
+      const cur = m ? m.updated_at : "";
+      if(typeof baseUpdatedAt === "string" && cur !== baseUpdatedAt){
+        throw Object.assign(new Error("Veri başka bir pencerede değişti"), { status: 409 });
+      }
+      let updatedAt = new Date().toISOString();
+      /* Aynı milisaniyede iki yazım aynı damgayı almasın (çakışma kontrolü kör kalırdı) */
+      const t = Date.parse(cur);
+      if(updatedAt <= cur && !isNaN(t)) updatedAt = new Date(t + 1).toISOString();
+      putItems(kind, items, updatedAt);
+      return updatedAt;
+    }));
+  }catch(e){ return Promise.reject(e); }
+}
+
+/* ---------- JSON dosyalarından bir kerelik göç ---------- */
+function legacyFile(kind){ return path.join(DATA_DIR, kind + ".json"); }
+function readLegacyKind(kind){
+  const text = fs.readFileSync(legacyFile(kind), "utf8").replace(/^﻿/, "").trim();
+  if(!text) return { items: [], updatedAt: "" };
+  const data = JSON.parse(text);   // bozuksa hata fırlatır → göç yapılmaz, sunucu durur
+  const out = Array.isArray(data) ? { items: data, updatedAt: "" }
+    : data && Array.isArray(data.items) ? { items: data.items, updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : "" }
+    : null;
+  if(!out) throw new Error(kind + ".json beklenen biçimde değil");
+  if(!out.items.every(x => x && typeof x === "object" && !Array.isArray(x))) throw new Error(kind + ".json içinde nesne olmayan kayıt var");
+  return out;
+}
+/* Veritabanı boşsa data/*.json ve attachments/*.json dosyalarını tek işlemde içe aktarır.
+   Özgün dosyalar silinmez; data/json-yedek-<zaman>/ klasörüne taşınır. */
+function migrateFromJson(){
+  const files = KINDS.filter(k => fs.existsSync(legacyFile(k)));
+  const attMetas = fs.readdirSync(ATT_DIR).filter(n => /^[\w-]{1,64}\.json$/.test(n));
+  const filled = db.prepare("SELECT (SELECT COUNT(*) FROM meta) + (SELECT COUNT(*) FROM items) AS n").get().n > 0;
+  if(filled){
+    if(files.length) console.warn("Uyarı: veritabanı dolu olduğu için şu eski JSON dosyaları yok sayıldı: " + files.map(k => k + ".json").join(", "));
+    return;
+  }
+  if(!files.length && !attMetas.length) return;
+
+  const data = {};
+  for(const k of files) data[k] = readLegacyKind(k);
+  const atts = [];
+  for(const n of attMetas){
+    const id = n.slice(0, -5);
+    try{
+      const m = JSON.parse(fs.readFileSync(path.join(ATT_DIR, n), "utf8"));
+      atts.push({ id, name: String(m.name || "dosya").slice(0, 200), type: String(m.type || "application/octet-stream"), size: +m.size || 0, uploadedAt: String(m.uploadedAt || "") });
+    }catch(e){ console.warn("Uyarı: ek bilgisi okunamadı, atlandı: attachments/" + n); }
+  }
+  const now = new Date().toISOString();
+  tx(() => {
+    for(const k of files) putItems(k, data[k].items, data[k].updatedAt || now);
+    const ins = db.prepare("INSERT OR REPLACE INTO attachments(id, name, type, size, uploaded_at) VALUES (?, ?, ?, ?, ?)");
+    atts.forEach(a => ins.run(a.id, a.name, a.type, a.size, a.uploadedAt));
+  });
+
+  const dest = path.join(DATA_DIR, "json-yedek-" + stamp());
+  fs.mkdirSync(path.join(dest, "attachments-meta"), { recursive: true });
+  const move = (from, to) => { try{ renameWithRetry(from, to); }catch(e){ console.warn("Uyarı: taşınamadı (" + e.code + "): " + from); } };
+  files.forEach(k => move(legacyFile(k), path.join(dest, k + ".json")));
+  attMetas.forEach(n => move(path.join(ATT_DIR, n), path.join(dest, "attachments-meta", n)));
+  console.log("JSON'dan SQLite'a göç edildi: " + files.map(k => data[k].items.length + " " + k).join(", ") +
+    ", " + atts.length + " ek bilgisi. Özgün dosyalar: " + dest);
+}
+
+function startStorage(){
+  db = openDb();
+  migrateFromJson();
+}
+function closeStorage(){ if(db){ try{ db.close(); }catch(e){} db = null; } }
 
 /* Windows'ta antivirüs/dizinleyici dosyayı kısa süre tutabilir; rename'i birkaç kez dene. */
 function renameWithRetry(from, to){
@@ -89,55 +215,39 @@ function renameWithRetry(from, to){
   }
 }
 
-/* ---------- Atomik yazma (her tür için sıralı) ---------- */
-const queues = {};
-/* baseUpdatedAt verilmişse ve dosyadaki sürümle uyuşmuyorsa (başka sekme/pencere yazmış) 409 ile reddeder. */
-function writeKind(kind, items, baseUpdatedAt){
-  const run = () => new Promise((resolve, reject) => {
-    const p = filePath(kind);
-    const tmp = p + ".tmp-" + process.pid;
-    try{
-      if(typeof baseUpdatedAt === "string" && readKindFull(kind).updatedAt !== baseUpdatedAt){
-        return reject(Object.assign(new Error("Veri başka bir pencerede değişti"), { status: 409 }));
-      }
-    }catch(e){ return reject(e); }
-    const updatedAt = new Date().toISOString();
-    const payload = JSON.stringify({ schemaVersion: SCHEMA_VERSION, updatedAt, items }, null, 2);
-    try{
-      const fd = fs.openSync(tmp, "w");
-      fs.writeSync(fd, payload);
-      fs.fsyncSync(fd);
-      fs.closeSync(fd);
-      renameWithRetry(tmp, p);
-      resolve(updatedAt);
-    }catch(e){
-      try{ fs.unlinkSync(tmp); }catch(_){}
-      reject(e);
-    }
-  });
-  queues[kind] = (queues[kind] || Promise.resolve()).then(run, run);
-  return queues[kind];
+/* ---------- Yedek ---------- */
+/* Yalnızca TEK yedek tutulur (kullanıcı tercihi): yeni yedek başarıyla alındıktan sonra diğer tüm yedekler
+   (eski .db dosyaları ve JSON dönemi klasörleri, demo-oncesi-* dahil) silinir. Yedek alınamazsa eskiler korunur. */
+/* VACUUM INTO: o anki veritabanının tutarlı, tek dosyalık kopyası */
+function backupDb(label){
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const base = (label ? label + "-" : "") + stamp();
+  let f = path.join(BACKUP_DIR, base + ".db");
+  for(let i = 2; fs.existsSync(f); i++) f = path.join(BACKUP_DIR, base + "-" + i + ".db");
+  db.prepare("VACUUM INTO ?").run(f);
+  pruneBackups(f);
+  return f;
 }
-
-/* ---------- Açılışta yedek ---------- */
-function backupOnStartup(){
-  const existing = KINDS.filter(k => fs.existsSync(filePath(k)));
-  if(!existing.length) return;
-  const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  const stamp = d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + "-" + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
-  const dir = path.join(BACKUP_DIR, stamp);
-  fs.mkdirSync(dir, { recursive: true });
-  existing.forEach(k => fs.copyFileSync(filePath(k), path.join(dir, k + ".json")));
-  const all = fs.readdirSync(BACKUP_DIR).filter(n => fs.statSync(path.join(BACKUP_DIR, n)).isDirectory()).sort();
-  all.slice(0, Math.max(0, all.length - KEEP_BACKUPS)).forEach(n => {
-    fs.rmSync(path.join(BACKUP_DIR, n), { recursive: true, force: true });
+function pruneBackups(keep){
+  fs.readdirSync(BACKUP_DIR).forEach(n => {
+    const p = path.join(BACKUP_DIR, n);
+    if(p === keep) return;
+    try{
+      const st = fs.statSync(p);
+      if(st.isDirectory() || n.endsWith(".db")) fs.rmSync(p, { recursive: true, force: true });
+    }catch(e){ console.warn("Uyarı: eski yedek silinemedi: " + n + " (" + e.code + ")"); }
   });
+}
+function backupOnStartup(){
+  if(!db.prepare("SELECT COUNT(*) AS n FROM items").get().n) return;   // boş veritabanının yedeği alınmaz (eskiler korunur)
+  backupDb("");
 }
 
 /* ---------- Ekler ---------- */
+/* Dosyanın kendisi diskte (data/attachments/<id>), bilgileri veritabanında (attachments tablosu) */
+/* Ek kullanan türler (sahipsiz ek temizliği bunlara bakar) */
+const ATT_KINDS = ["tasks", "archive", "projectNotes"];   // projectNotes: ekler + html içindeki resimler
 function attPath(id){ return path.join(ATT_DIR, id); }
-function attMetaPath(id){ return path.join(ATT_DIR, id + ".json"); }
 
 function writeFileAtomic(p, data){
   const tmp = p + ".tmp-" + process.pid;
@@ -161,14 +271,14 @@ function saveAttachment(buf, rawName, rawType){
   const id = "a" + crypto.randomBytes(10).toString("hex");
   const meta = { id, name, type, size: buf.length, uploadedAt: new Date().toISOString() };
   writeFileAtomic(attPath(id), buf);
-  writeFileAtomic(attMetaPath(id), JSON.stringify(meta));
+  db.prepare("INSERT INTO attachments(id, name, type, size, uploaded_at) VALUES (?, ?, ?, ?, ?)").run(id, name, type, meta.size, meta.uploadedAt);
   return meta;
 }
 
 function serveAttachment(res, id){
   if(!SAFE_ID.test(id)) return send(res, 400, { error: "Geçersiz ek kimliği" });
-  let meta;
-  try{ meta = JSON.parse(fs.readFileSync(attMetaPath(id), "utf8")); }catch(e){ return send(res, 404, { error: "Ek bulunamadı" }); }
+  const meta = db.prepare("SELECT name, type FROM attachments WHERE id = ?").get(id);
+  if(!meta) return send(res, 404, { error: "Ek bulunamadı" });
   fs.readFile(attPath(id), (err, buf) => {
     if(err) return send(res, 404, { error: "Ek bulunamadı" });
     const inline = INLINE_TYPES.has(meta.type);
@@ -185,30 +295,58 @@ function serveAttachment(res, id){
   });
 }
 
-/* Hiçbir işin (aktif ya da arşiv) kullanmadığı ve 1 günden eski ekleri siler.
-   Bir JSON dosyası okunamazsa hiçbir şey silinmez: bozuk veri yüzünden ek kaybetmeyelim. */
+/* Ekten çıkarılmış metin (LLM için). Sonuç att_text tablosunda önbelleğe alınır; status "v<sürüm>:<durum>" biçimindedir,
+   böylece çıkarma algoritması değişince (EXTRACT_VERSION) eski sonuçlar yeniden hesaplanır.
+   Durum ok/partial ise text metnin kendisi, değilse okunamama nedenidir. */
+function attText(id){
+  if(!SAFE_ID.test(id)) return { status: "none", text: "", reason: "Geçersiz ek kimliği" };
+  const row = db.prepare("SELECT text, status FROM att_text WHERE id = ?").get(id);
+  const pre = "v" + EXTRACT_VERSION + ":";
+  if(row && row.status.startsWith(pre)){
+    const st = row.status.slice(pre.length), good = st === "ok" || st === "partial";
+    return { status: st, text: good ? row.text : "", reason: good ? "" : row.text };
+  }
+  const meta = db.prepare("SELECT name, type FROM attachments WHERE id = ?").get(id);
+  if(!meta) return { status: "none", text: "", reason: "Ek bulunamadı" };
+  let buf;
+  try{ buf = fs.readFileSync(attPath(id)); }catch(e){ return { status: "none", text: "", reason: "Ek dosyası bulunamadı" }; }
+  const r = extract(buf, meta.name, meta.type);
+  const good = r.status === "ok" || r.status === "partial";
+  db.prepare("INSERT INTO att_text(id, text, status, extracted_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET text = excluded.text, status = excluded.status, extracted_at = excluded.extracted_at")
+    .run(id, good ? r.text : (r.reason || ""), pre + r.status, new Date().toISOString());
+  return r;
+}
+
+/* Hiçbir kaydın kullanmadığı ve 1 günden eski ekleri (dosya + veritabanı satırı) siler.
+   Bir tür okunamazsa hiçbir şey silinmez: bozuk veri yüzünden ek kaybetmeyelim. */
 function cleanupOrphanAttachments(){
   const used = new Set();
-  for(const k of ["tasks", "archive"]){
-    const items = readKindFull(k).items; // hata fırlatırsa temizlik tümüyle atlanır
-    items.forEach(t => {
+  for(const k of ATT_KINDS){
+    readKindFull(k).items.forEach(t => {   // hata fırlatırsa temizlik tümüyle atlanır
       if(!t || typeof t !== "object") return;
       if(Array.isArray(t.attachments)) t.attachments.forEach(a => { if(a && typeof a.id === "string") used.add(a.id); });
-      const html = typeof t.descriptionHtml === "string" ? t.descriptionHtml : "";
-      html.replace(/\/api\/attachments\/([\w-]+)/g, (_, id) => { used.add(id); return ""; });
+      ["descriptionHtml", "html"].forEach(f => {
+        const html = typeof t[f] === "string" ? t[f] : "";
+        html.replace(/\/api\/attachments\/([\w-]+)/g, (_, id) => { used.add(id); return ""; });
+      });
     });
   }
   const now = Date.now();
+  const delRow = db.prepare("DELETE FROM attachments WHERE id = ?"), delText = db.prepare("DELETE FROM att_text WHERE id = ?");
   let removed = 0;
   fs.readdirSync(ATT_DIR).forEach(n => {
-    const id = n.replace(/\.json$/, "").replace(/\.tmp-\d+$/, "");
-    if(used.has(id)) return;
+    const id = n.replace(/\.tmp-\d+$/, "");
+    if(used.has(id) || n.endsWith(".json")) return;
     const p = path.join(ATT_DIR, n);
     try{
       if(now - fs.statSync(p).mtimeMs < ORPHAN_AGE_MS) return;
       fs.unlinkSync(p);
-      if(!n.endsWith(".json")) removed++;
+      if(id === n){ delRow.run(id); delText.run(id); removed++; }
     }catch(e){}
+  });
+  /* Dosyası olmayan ve kullanılmayan satırlar */
+  db.prepare("SELECT id FROM attachments").all().forEach(r => {
+    if(!used.has(r.id) && !fs.existsSync(attPath(r.id))){ delRow.run(r.id); delText.run(r.id); }
   });
   if(removed) console.log("Kullanılmayan " + removed + " ek silindi.");
 }
@@ -483,6 +621,101 @@ async function aiChat(body){
   return { message: out, modelName: cfg.builtin ? "OpenRouter · gpt-oss-120b" : cfg.name };
 }
 
+/* ---------- Proje asistanı: projenin notları + eklerin metni (+ isteğe bağlı işleri) üzerinden soru-cevap ----------
+   Bağlamı istemci değil SUNUCU veritabanından kurar; istemci yalnızca hangi not/eklerin dahil olduğunu (kimlik) söyler. */
+const PROJ_BUDGET_BUILTIN = 150000;   // karakter (gpt-oss-120b ~131k token bağlam; payı yanıta bırakır)
+const PROJ_BUDGET_LOCAL = 40000;      // yerel modellerin bağlamı genelde küçük
+const PROJ_TIMEOUT_MS = 180000;
+function stripTags(h){ return String(h || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li|h\d|tr|blockquote)>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&"); }
+/* Toplam bütçeyi aşan kaynakları adil kırpar: tek bir üst sınır c bulunur; c'den kısa kaynaklar olduğu gibi kalır,
+   uzunlar c'ye kısaltılır (küçük notlar büyük bir PDF yüzünden kaybolmasın). */
+function fitBudget(sources, budget){
+  const total = sources.reduce((n, x) => n + x.text.length, 0);
+  if(total <= budget) return false;
+  let lo = 0, hi = Math.max(...sources.map(x => x.text.length));
+  while(hi - lo > 1){ const c = (lo + hi) >> 1; if(sources.reduce((n, x) => n + Math.min(x.text.length, c), 0) <= budget) lo = c; else hi = c; }
+  sources.forEach(x => { if(x.text.length > lo){ x.text = x.text.slice(0, lo) + "\n[… bütçe nedeniyle kısaltıldı]"; x.truncated = true; } });
+  return true;
+}
+function projectContext(projectId, opt, budget){
+  const project = readKindFull("projects").items.find(p => p && p.id === projectId);
+  if(!project) throw Object.assign(new Error("Proje bulunamadı"), { status: 404 });
+  const noteSet = Array.isArray(opt.noteIds) ? new Set(opt.noteIds.map(String)) : null;
+  const attSet = Array.isArray(opt.attIds) ? new Set(opt.attIds.map(String)) : null;
+  const notes = readKindFull("projectNotes").items.filter(n => n && n.projectId === projectId)
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const sources = [], unreadable = [];
+  notes.forEach(n => {
+    const title = s(n.title, 200) || "Adsız not";
+    if(!noteSet || noteSet.has(n.id)){
+      const text = (typeof n.text === "string" && n.text ? n.text : stripTags(n.html)).trim();
+      if(text) sources.push({ kind: "note", id: n.id, name: title, meta: "güncellendi " + s(n.updatedAt, 10), text });
+    }
+    (Array.isArray(n.attachments) ? n.attachments : []).forEach(a => {
+      if(!a || typeof a.id !== "string" || (attSet && !attSet.has(a.id))) return;
+      const r = attText(a.id), name = s(a.name, 200) || "dosya";
+      if((r.status === "ok" || r.status === "partial") && r.text) sources.push({ kind: "file", id: a.id, name, meta: "not: " + title + (r.status === "partial" ? ", kısmen okunabildi" : ""), text: r.text });
+      else unreadable.push(name);
+    });
+  });
+  if(opt.includeTasks){
+    const fmt = (t, arch) => "- " + s(t.title, 200) + " | durum: " + s(t.status, 20) + (arch ? " (arşivde)" : "") + " | öncelik: " + s(t.priority, 20) +
+      (t.startDate ? " | başlangıç: " + s(t.startDate, 10) : "") + (t.dueDate ? " | termin: " + s(t.dueDate, 10) : "") +
+      (t.description ? "\n  açıklama: " + s(t.description, 400).replace(/\s+/g, " ") : "") +
+      (Array.isArray(t.notes) && t.notes.length ? "\n  son notlar: " + t.notes.slice(-3).map(x => s(x && x.date, 10) + " " + s(x && x.text, 200).replace(/\s+/g, " ")).join(" / ") : "");
+    const list = readKindFull("tasks").items.filter(t => t && t.projectId === projectId).map(t => fmt(t, false))
+      .concat(readKindFull("archive").items.filter(t => t && t.projectId === projectId).map(t => fmt(t, true)));
+    if(list.length) sources.push({ kind: "tasks", id: "tasks", name: "Projenin işleri", meta: list.length + " iş", text: list.join("\n") });
+  }
+  const truncated = fitBudget(sources, budget);
+  const label = { note: "Not", file: "Dosya", tasks: "İşler" };
+  const context = sources.map(x => "### [" + label[x.kind] + ": " + x.name + "] (" + x.meta + ")\n" + x.text).join("\n\n");
+  return { project, context, truncated, unreadable,
+    used: sources.map(x => ({ kind: x.kind, name: x.name, chars: x.text.length, truncated: !!x.truncated })) };
+}
+async function aiProject(body){
+  body = body || {};
+  const cfg = resolveModel(s(body.modelId, 64));
+  cfg.timeout = Math.max(cfg.timeout, PROJ_TIMEOUT_MS);   // uzun bağlam: yanıt daha uzun sürebilir
+  const question = s(body.question, 4000).trim();
+  if(!question) throw Object.assign(new Error("Soru boş"), { status: 400 });
+  const budget = cfg.builtin ? PROJ_BUDGET_BUILTIN : PROJ_BUDGET_LOCAL;
+  const ctx = projectContext(s(body.projectId, 64), { noteIds: body.noteIds, attIds: body.attIds, includeTasks: body.includeTasks === true }, budget);
+  if(!ctx.used.length) throw Object.assign(new Error("Seçili kaynaklarda okunabilir metin yok. En az bir not ya da okunabilir dosya seçin."), { status: 400 });
+  const d = new Date(), p2 = n => String(n).padStart(2, "0");
+  const today = p2(d.getDate()) + "." + p2(d.getMonth() + 1) + "." + d.getFullYear();   // yerel tarih (UTC değil)
+  const system = "Sen İş Takip uygulamasında \"" + s(ctx.project.name, 200) + "\" projesinin asistanısın. Bugün " + today + " (" + DAYS_TR[d.getDay()] + ").\n" +
+    "Kurallar:\n- Yalnızca aşağıdaki KAYNAKLAR'a dayanarak, kullanıcının dilinde (genelde Türkçe) yanıt ver.\n" +
+    "- Kaynaklarda olmayan bilgiyi uydurma; yoksa açıkça \"kaynaklarda bulunmuyor\" de.\n" +
+    "- Önemli bilgilerin sonunda kaynağını köşeli parantezle belirt: [Not: başlık] ya da [Dosya: ad].\n" +
+    "- Biçim: kısa paragraflar ve \"- \" ile başlayan maddeler; **kalın** kullanabilirsin. Tablo ve başlık (#) kullanma.\n" +
+    (ctx.truncated ? "- Bazı kaynaklar uzunluk sınırı nedeniyle kısaltıldı; bunu gerekirse belirt.\n" : "") +
+    (ctx.unreadable.length ? "- Şu dosyaların içeriği okunamadı (yalnızca adları biliniyor): " + ctx.unreadable.join(", ") + "\n" : "") +
+    "\nKAYNAKLAR:\n\n" + ctx.context;
+  const hist = (Array.isArray(body.history) ? body.history : []).filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .slice(-12).map(m => ({ role: m.role, content: s(m.content, 12000) }));
+  const req = { model: cfg.model, messages: [{ role: "system", content: system }].concat(hist, [{ role: "user", content: question }]), temperature: 0.2, max_tokens: 3000 };
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), cfg.timeout);
+  let r, j;
+  try{
+    r = await fetch(cfg.url, { method: "POST", signal: ctrl.signal, headers: aiHeaders(cfg), body: JSON.stringify(req) });
+    j = await r.json().catch(() => ({}));
+  }catch(e){ throw Object.assign(new Error(netError(e, cfg)), { status: 502 }); }
+  finally{ clearTimeout(timer); }
+  const detail = j && j.error ? ": " + s(typeof j.error === "string" ? j.error : j.error.message, 300) : "";
+  if(!r.ok){
+    const map = { 400: '"' + cfg.name + '" isteği reddetti (bağlam modelin sınırını aşmış olabilir; daha az kaynak seçin)', 401: '"' + cfg.name + '" anahtarı reddetti',
+      402: "OpenRouter bakiyesi yetersiz", 403: '"' + cfg.name + '" isteği engelledi', 404: '"' + cfg.model + '" modeli bulunamadı', 408: "Zaman aşımı",
+      413: "Gönderilen metin çok büyük; daha az kaynak seçin", 429: "Çok fazla istek; biraz bekleyip tekrar deneyin" };
+    throw Object.assign(new Error((map[r.status] || ('"' + cfg.name + '" hatası (HTTP ' + r.status + ")")) + detail), { status: 502 });
+  }
+  const msg = j && j.choices && j.choices[0] && j.choices[0].message;
+  const answer = msg ? stripThink(typeof msg.content === "string" ? msg.content : "") : "";
+  if(!answer) throw Object.assign(new Error('"' + cfg.name + '" boş yanıt döndü' + detail), { status: 502 });
+  return { answer, modelName: cfg.builtin ? "OpenRouter · gpt-oss-120b" : cfg.name, used: ctx.used, unreadable: ctx.unreadable,
+    truncated: ctx.truncated, budget, contextChars: ctx.context.length };
+}
+
 /* ---------- Yardımcılar ---------- */
 function send(res, status, body, headers){
   const isObj = typeof body === "object" && !Buffer.isBuffer(body);
@@ -543,6 +776,7 @@ function serveStatic(req, res, pathname){
 const server = http.createServer(async (req, res) => {
   try{
     const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));
+    if(!db && url.pathname.startsWith("/api/")) return send(res, 503, { error: "Sunucu hazırlanıyor, birazdan tekrar deneyin" });
     const pathname = url.pathname;
 
     if(pathname === "/api/state" && req.method === "GET"){
@@ -550,7 +784,7 @@ const server = http.createServer(async (req, res) => {
       const out = { meta: {} };
       for(const k of KINDS){
         try{ const r = readKindFull(k); out[k] = r.items; out.meta[k] = r.updatedAt; }
-        catch(e){ return send(res, 500, { error: k + ".json okunamadı: " + e.message }); }
+        catch(e){ return send(res, 500, { error: "Veritabanındaki " + k + " kayıtları okunamadı: " + e.message }); }
       }
       return send(res, 200, out);
     }
@@ -573,12 +807,41 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await testModel(parsed));
     }
 
+    if(pathname === "/api/ai/project" && req.method === "POST"){
+      if(!sameOriginOk(req)) return send(res, 403, { error: "Yasak" });
+      if(!/^application\/json/i.test(req.headers["content-type"] || "")) return send(res, 415, { error: "Content-Type application/json olmalı" });
+      let parsed;
+      try{ parsed = JSON.parse(await readBody(req, 1024 * 1024)); }catch(e){ if(e.status) throw e; return send(res, 400, { error: "Geçersiz JSON" }); }
+      return send(res, 200, await aiProject(parsed));
+    }
+
     if(pathname === "/api/ai/chat" && req.method === "POST"){
       if(!sameOriginOk(req)) return send(res, 403, { error: "Yasak" });
       if(!/^application\/json/i.test(req.headers["content-type"] || "")) return send(res, 415, { error: "Content-Type application/json olmalı" });
       let parsed;
       try{ parsed = JSON.parse(await readBody(req, 1024 * 1024)); }catch(e){ if(e.status) throw e; return send(res, 400, { error: "Geçersiz JSON" }); }
       return send(res, 200, await aiChat(parsed));
+    }
+
+    if(pathname === "/api/backup" && req.method === "POST"){
+      if(!sameOriginOk(req)) return send(res, 403, { error: "Yasak" });
+      let label = "";
+      try{ const b = JSON.parse((await readBody(req, 4096)) || "{}"); label = typeof b.label === "string" ? b.label : ""; }catch(e){ if(e.status) throw e; }
+      if(label && !/^[\w-]{1,40}$/.test(label)) return send(res, 400, { error: "Geçersiz yedek etiketi" });
+      const f = backupDb(label);
+      return send(res, 200, { ok: true, file: path.relative(DATA_DIR, f) });
+    }
+
+    /* Eklerden metin çıkarma durumu: { ids: [...] } → { items: { id: { status, chars, reason } } } (metnin kendisi dönmez) */
+    if(pathname === "/api/attachments/text-status" && req.method === "POST"){
+      if(!sameOriginOk(req)) return send(res, 403, { error: "Yasak" });
+      if(!/^application\/json/i.test(req.headers["content-type"] || "")) return send(res, 415, { error: "Content-Type application/json olmalı" });
+      let parsed;
+      try{ parsed = JSON.parse(await readBody(req, 64 * 1024)); }catch(e){ if(e.status) throw e; return send(res, 400, { error: "Geçersiz JSON" }); }
+      const list = (Array.isArray(parsed && parsed.ids) ? parsed.ids : []).filter(x => typeof x === "string" && SAFE_ID.test(x)).slice(0, 300);
+      const items = {};
+      list.forEach(id => { const r = attText(id); items[id] = { status: r.status, chars: r.text.length, reason: r.reason || "" }; });
+      return send(res, 200, { items });
     }
 
     if(pathname === "/api/attachments" && req.method === "POST"){
@@ -593,7 +856,7 @@ const server = http.createServer(async (req, res) => {
       return serveAttachment(res, am[1]);
     }
 
-    const m = pathname.match(/^\/api\/(tasks|projects|archive|units)$/);
+    const m = pathname.match(/^\/api\/(tasks|projects|archive|units|reminders|memos|projectNotes)$/);
     if(m && req.method === "PUT"){
       if(!sameOriginOk(req)) return send(res, 403, { error: "Yasak" });
       if(!/^application\/json/i.test(req.headers["content-type"] || "")) return send(res, 415, { error: "Content-Type application/json olmalı" });
@@ -626,8 +889,10 @@ server.on("error", e => {
   process.exit(1);
 });
 
-/* Yedek, port başarıyla açıldıktan sonra alınır; böylece "port dolu" ile biten açılışlar eski yedekleri döndürmez. */
+/* Veritabanı ve yedek, port başarıyla açıldıktan sonra açılır/alınır; böylece "port dolu" ile biten açılışlar eski yedekleri döndürmez. */
 server.listen(PORT, HOST, () => {
+  try{ startStorage(); }
+  catch(e){ console.error("Veri deposu açılamadı: " + e.message); process.exit(1); }
   try{ backupOnStartup(); }catch(e){ console.error("Yedek alınamadı:", e.message); }
   try{ cleanupOrphanAttachments(); }catch(e){ console.error("Ek temizliği atlandı:", e.message); }
   console.log("İş Takip çalışıyor:  http://" + (HOST === "127.0.0.1" ? "localhost" : HOST) + ":" + PORT);
@@ -637,3 +902,7 @@ server.listen(PORT, HOST, () => {
     (extra ? " · " + extra + " ek model kayıtlı" : ""));
   console.log("Kapatmak için bu pencerede Ctrl+C.");
 });
+
+/* Ctrl+C / kapatma: veritabanını düzgün kapat */
+["SIGINT", "SIGTERM", "SIGBREAK"].forEach(sig => process.on(sig, () => { closeStorage(); process.exit(0); }));
+process.on("exit", closeStorage);

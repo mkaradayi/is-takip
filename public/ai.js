@@ -200,5 +200,6 @@ function init(bridge){
   render();
 }
 
-window.AiChat = { init: init, isBusy: function(){ return busy; }, send: send };
+/* format: güvenli model metni biçimlendirici (proje asistanı da kullanır) */
+window.AiChat = { init: init, isBusy: function(){ return busy; }, send: send, format: fmt };
 })();
