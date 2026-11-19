@@ -3,7 +3,7 @@
 Yerel çalışan, **bağımlılıksız** bir kanban iş takip uygulaması: Node.js sunucusu (yalnızca yerleşik modüller, veri `node:sqlite` ile SQLite'ta) + vanilla JS arayüz. Kullanıcı Windows'ta, arayüz ve kod yorumları **Türkçe**. Kullanıcıya Türkçe yanıt verin.
 
 - Çalıştırma: Windows'ta `servis/servis-kur.bat` (Görev Zamanlayıcı ile penceresiz otomatik başlatma; kurar, başlatır, tarayıcıyı açar) ya da elle `node server.js` → http://localhost:3000. **Node ≥ 22.13** gerekir (yerleşik SQLite). Kullanıcı servisi kullanıyor; sunucu penceresizdir. (`baslat.bat` kullanıcı isteğiyle kaldırıldı.)
-- **Git deposu var** (`main`), ama commit/push yalnızca kullanıcı isterse. `data/` git'te izleniyor (kullanıcının gerçek verisi; `is-takip.db` ikili dosya). Değişiklik geçmişi bu dosyanın sonunda.
+- **Git deposu var** (`main`, uzak sunucu yok), ama commit/push yalnızca kullanıcı isterse. **`data/` git'e girmez** (`.gitignore`; kullanıcı kararı): veritabanı, ekler, yedekler ve model anahtarları yalnızca diskte. Verinin yedeği git değil, `data/backup/` ve JSON dışa aktarmadır. (İlk iki commit'in geçmişinde eski veri hâlâ duruyor.) Değişiklik geçmişi bu dosyanın sonunda.
 - Son kullanıcı belgesi: [README.md](README.md). Planlar ve checklist'ler: [PLAN.md](PLAN.md) (en sondaki "11 Yeni İstek Planı" en güncelidir).
 
 ## Değişmez ilkeler (bunları bozmayın)
@@ -117,9 +117,9 @@ Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp ça
 - **Eski sunucu + yeni arayüz:** `public/` hemen yenilenir ama sunucu eski kodla çalışmaya devam eder → yeni türler 404. Arayüz bunu uyarır; kullanıcıya yeniden başlatmayı hatırlatın.
 - **Servis süreç eşleme:** `gizli.vbs` komutu `cmd.exe /c ""...\calistir.cmd" 3000"` biçimindedir (port sonrası **tırnak**). `servis.ps1` bu cmd sürecini ve onun `node` çocuğunu komut satırıyla bulur; sıra wscript → cmd → node (döngü yeniden başlatmasın). `cmd /c` ikiden fazla tırnakta ilk ve son tırnağı sildiği için komutun tamamı bir kat daha tırnaklıdır. Gizli pencerede `timeout` çalışmaz; bekleme `ping` ile.
 - **Windows PowerShell 5.1:** `.ps1` UTF-8 **BOM**'suz olursa Türkçe bozulur; `Invoke-WebRequest` proxy algılamasında zaman aşımını dinlemeden takılabilir → port kontrolü `TcpClient.ConnectAsync(...).Wait(1500)` ile.
-- **SQLite:** WAL kullanılmıyor (bilinçli): süreç zorla kapatılınca (Windows'ta `kill` = zorla) veri `-wal`'da kalıp `.db` eksik görünüyordu; `data/` git'te izlendiği için önemli. Port doluyken (`EADDRINUSE`) DB açılmaz, yedek alınmaz.
+- **SQLite:** WAL kullanılmıyor (bilinçli): süreç zorla kapatılınca (Windows'ta `kill` = zorla) veri `-wal`'da kalıp `.db` eksik görünüyordu; `.db` dosyası tek başına kopyalanınca (yedek, taşıma) eksik olmasın diye. Port doluyken (`EADDRINUSE`) DB açılmaz, yedek alınmaz.
 - **Test betikleri:** scratchpad'deki `stop.sh` bash'ten başlatılan **tüm** node süreçlerini kapatır; bir node test betiğinin içinden çağırırsanız betiğin kendisini de öldürür (betik kendi sunucusunu `spawn` edip `kill` etmeli). Bash heredoc içinde ters eğik çizgiler (`\\`, `\n` içeren regex'ler) bozulabiliyor: kaçış içeren betikleri Write aracıyla dosyaya yazın. Zararlı HTML'i `innerHTML` ile test sayfasına doğrudan yazmak kodu tarayıcıda o an çalıştırır; XSS'i kaydedilen veriden ya da sunucuya doğrudan yazılmış veriden test edin.
-- **Git satır sonu dönüşümü:** kullanıcıda `core.autocrlf` açık. `.gitattributes` `data/**` için dönüşümü kapatır (`-text`); yoksa metin sanılan ekler (ör. PDF) depodan geri alınırken bozulur. Veri içeren yeni bir klasör eklerseniz oraya da uygulayın.
+- **Git satır sonu dönüşümü:** kullanıcıda `core.autocrlf` açık. `data/` artık git dışında; yine de `.gitattributes` `data/**` ve ikili türler için dönüşümü kapatır (`-text`), çünkü metin sanılan ekler (ör. PDF) depodan geri alınırken bozulur. Depoya ikili/veri dosyası eklerseniz bunu koruyun.
 - `.env` ayrıştırıcısı BOM, `export`, tırnaklı değer ve satır sonu yorumunu destekler; ortamda tanımlı değişkeni ezmez.
 - `document.execCommand` editörde bilinçli olarak kullanılıyor. Yapıştırılan içerik her zaman temizleniyor.
 - Tarayıcının `confirm()` / `alert()` pencereleri kullanılmaz; `showConfirm` / `showInfo` kullanılır. `showConfirm`'e `select` verilirse seçilen değer `onConfirm(value)`'ya geçer.
@@ -146,7 +146,7 @@ Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp ça
    - Yedek saklama: **yalnızca tek yedek** (kullanıcı, 7 günlük saklama ve arşiv silme yerine bunu seçti).
    - Hatırlatmalar; sonra kullanıcı isteğiyle **Notlarım** (tarihsiz) ayrı tür ve sayfa oldu.
    - Proje sayfaları + proje notları; `extract.js` ile ek metni; **proje asistanı** (LLM ile notlar + ekler üzerinden soru-cevap).
-10. `baslat.bat` kaldırıldı (yerini `servis-kur.bat` aldı; tarayıcıyı da o açıyor); proje git'e işlendi.
+10. `baslat.bat` kaldırıldı (yerini `servis-kur.bat` aldı; tarayıcıyı da o açıyor); proje git'e işlendi ve `main`'e birleştirildi; `data/` git takibinden çıkarıldı.
 
 ## Kullanıcı tercihleri ve çalışma biçimi
 - Kullanıcı Türkçe yazıyor; açıklamaları ve özetleri Türkçe verin.

@@ -1,9 +1,8 @@
+# Kullanıcı verisi: veritabanı, ekler, yedekler, AI model anahtarları (yerel; git'e girmez)
+data/
+
 # Gizli anahtarlar
 .env
-data/ai-models.json
-
-# Açılış ve demo yedekleri (yerel)
-data/backup/
 
 # Atomik yazımın yarıda kalan geçici dosyaları
 *.tmp-*
@@ -17,8 +16,7 @@ node_modules/
 # Servis (otomatik başlatma) logları
 logs/
 
-# SQLite çalışma dosyaları ve JSON göç yedeği (yerel)
+# SQLite çalışma dosyaları (DATA_DIR proje dışında olsa da)
 *.db-wal
 *.db-shm
 *.db-journal
-data/json-yedek-*/
