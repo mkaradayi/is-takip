@@ -18,7 +18,7 @@ Uygulama, oturum açılınca arka planda (penceresiz) başlayacak şekilde kurul
 | `servis-kaldir.bat` | Çalışan sunucuyu durdurur ve görevi siler |
 
 - Kurmadan önce elle açılmış bir sunucu penceresi (`node server.js`) varsa Ctrl+C ile kapatın. Port başka bir programdaysa kurulum görevi oluşturur ama başlatmaz ve bunu bildirir.
-- Sunucu çökerse 10 saniye sonra kendiliğinden yeniden başlar.
+- Sunucu çökerse (ya da port başka bir programdaysa) 10 saniye arayla **en fazla 3 kez** kendiliğinden yeniden başlatılır; yine olmazsa durur ve bunu log dosyasına yazar (`servis-durum.bat` son satırlarda gösterir). Sayaç toplamdır: sorunsuz çalışma süresi onu sıfırlamaz. Sorunu giderdikten sonra `servis-kur.bat` ile yeniden başlatın (ya da oturumu kapatıp açın).
 - Sunucu çıktısı `logs/server.log` dosyasına yazılır; dosya 5 MB'ı aşınca `server.log.1` olarak saklanır.
 - **Güncellemeden sonra** `servis-kur.bat`'ı tekrar çalıştırmanız yeterli: eski sunucuyu durdurur, görevi yeniden kurar ve yenisini başlatır.
 

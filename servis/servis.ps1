@@ -80,7 +80,8 @@ function Gorev-Kur {
   $eylem   = New-ScheduledTaskAction -Execute "wscript.exe" -Argument $arg -WorkingDirectory $Kok
   $tetik   = New-ScheduledTaskTrigger -AtLogOn -User $kullanici
   $ayarlar = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
-               -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+               -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+  # RestartCount bilinçli olarak yok: yeniden deneme sınırı calistir.cmd'de (en fazla 3); vazgeçince görev yeniden başlatılmasın.
   $kimlik  = New-ScheduledTaskPrincipal -UserId $kullanici -LogonType Interactive -RunLevel Limited
 
   $var = Get-ScheduledTask -TaskName $GorevAdi -ErrorAction SilentlyContinue
@@ -97,7 +98,7 @@ function Gorev-Kur {
   }
   $null = Register-ScheduledTask -TaskName $GorevAdi -Action $eylem -Trigger $tetik -Settings $ayarlar -Principal $kimlik `
             -Description "İş Takip sunucusu (http://localhost:$Port). Kaldırmak için servis\servis-kaldir.bat"
-  Yaz Green "Görev kuruldu: '$GorevAdi' (oturum açılınca otomatik başlar, sunucu çökerse 10 sn sonra yeniden başlar)."
+  Yaz Green "Görev kuruldu: '$GorevAdi' (oturum açılınca otomatik başlar, sunucu çökerse 10 sn arayla en fazla 3 kez yeniden başlatılır)."
 
   if(Port-YanitVeriyor){
     Yaz Yellow "Port $Port zaten kullanımda (büyük olasılıkla elle açılmış bir 'node server.js' penceresi var)."

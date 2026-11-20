@@ -689,3 +689,17 @@ Ayarlar "Veri ve yedek" kartı; geri yüklemede manifest özeti ile onay, sonra 
 
 ## Doğrulama
 `DATA_DIR=<scratchpad> PORT=3917`. İndirilen ZIP PowerShell `Expand-Archive` ile açılmalı; DB içeriği `/api/state` ile, ekler bayt bayt aynı. Geri yükleme sonrası veri ve ekler birebir; öncesi yedeği var. Kötü ZIP'ler (yol kaçışı, bozuk CRC, bozuk/yeni SQLite, ZIP bombası, ZIP olmayan) reddedilmeli ve veri değişmemeli; değiştirme ortasında hata → eski veri geri gelmeli; diğer pencere 409. Arayüz ekran görüntüleri; önceki test takımları.
+
+---
+
+# İş Takip — Servis Yeniden Deneme Sınırı
+
+## Context
+`servis/calistir.cmd` sunucu durduğunda 10 sn bekleyip sonsuza kadar yeniden başlatıyordu (port doluysa da). İstek: çökme ya da port kullanılamaması durumunda en fazla 3 kez denesin, sonra dursun.
+
+**Kararlar (kullanıcı):** sayaç **toplam** (sorunsuz çalışma sıfırlamaz); ilk açılış + **3 yeniden deneme**. Vazgeçince log'a yazılır; `servis-kur.bat` ya da oturum açılışı yeniden başlatır. Görev Zamanlayıcı'nın `RestartCount` ayarı kaldırılır (denemeleri katlamasın).
+
+## Checklist
+- [x] 1. `calistir.cmd`: sayaç, "deneme N/3" ve vazgeçme satırı, `exit /b`
+- [x] 2. `servis.ps1`: `RestartCount` kaldırıldı, kurulum mesajı
+- [x] 3. README, CLAUDE.md; test (port dolu, çökme, test göreviyle 4 kez sonlandırma)
