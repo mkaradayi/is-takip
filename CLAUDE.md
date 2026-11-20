@@ -40,14 +40,14 @@ Derleme adımı yok. İstemci **ES modülleri** (`<script type="module" src="js/
 | Yer | İçerik |
 |---|---|
 | [public/index.html](public/index.html) | Yalnızca iskelet: CSS bağlantıları + `@include` satırları + modül girişi |
-| [public/partials/](public/partials/) | Sayfa/pencere HTML'leri: `sidebar`, `board`, `projects`, `reminders`, `memos`, `archive`, `settings`, `ai-panel`, `select-bar`, `task-modal`, `project-note-modal`, `dialogs` (onay, toast, bağlantı hatası) |
-| [public/css/](public/css/) | `base` (değişkenler `:root`) → `sidebar` → `board` → `pages` → `settings` → `modal` → `ai` → `responsive`. **Sıra önemli** (aynı özgüllükte sonraki kazanır; `responsive.css` en sonda) |
+| [public/partials/](public/partials/) | Sayfa/pencere HTML'leri: `sidebar`, `board`, `calendar`, `projects`, `reminders`, `memos`, `archive`, `settings`, `ai-panel`, `select-bar`, `task-modal`, `project-note-modal`, `dialogs` (onay, toast, bağlantı hatası) |
+| [public/css/](public/css/) | `base` (değişkenler `:root`) → `sidebar` → `board` → `pages` → `settings` → `modal` → `ai` → `components` (seçici, çalışan rozetleri) → `calendar` → `responsive`. **Sıra önemli** (aynı özgüllükte sonraki kazanır; `responsive.css` en sonda) |
 | [public/js/main.js](public/js/main.js) | Giriş: `bind()` (her modülün `bindX()`'ini çağırır + üst çubuk, kapanış uyarısı, odakta yeniden yükleme), `boot()`, `setFatal`, `reloadPage` |
-| `js/core/` | `config` (STATUSES, PRIORITIES, ICON…), `utils` (`$`, `esc`, tarih), `state` (`state`, `normalize*`, `setUnits`, `UNIT_MAP`), `storage` (`Storage`, `commit`), `domain` (`urgency`, `needsDates`, `taskMatch`, `filteredTasks`), `ui` (`toast`, `showConfirm/showInfo`, `bindBackdropClose`, tarih alanı), `render` (`renderAll`, `VIEWS`, `switchView`), `overlays` (`topOverlayClose`, `anyOverlayOpen`) |
-| `js/views/` | `sidebar`, `board` (sekmeler, kartlar, sürükle-bırak), `alerts`, `archive`, `reminders`, `memos`, `projects`, `project-assistant` (`pa*`), `settings` |
+| `js/core/` | `config` (STATUSES, PRIORITIES, ICON…), `utils` (`$`, `esc`, tarih), `state` (`state`, `normalize*`, `setUnits`, `UNIT_MAP`, `MEMBER_MAP`, `fixAssignees`, `assigneeText`), `storage` (`Storage`, `commit`), `domain` (`urgency`, `needsDates`, `taskMatch`, `filteredTasks`), `ui` (`toast`, `showConfirm/showInfo`, `bindBackdropClose`, tarih alanı), `render` (`renderAll`, `VIEWS`, `switchView`), `overlays` (`topOverlayClose`, `anyOverlayOpen`) |
+| `js/views/` | `sidebar` (katlanır/aranabilir filtreler), `board` (sekmeler, masonry kartlar, sürükle-bırak), `calendar`, `alerts`, `archive`, `reminders`, `memos`, `projects`, `project-assistant` (`pa*`), `settings` |
 | `js/modals/` | `task-modal` (iş penceresi, `saveTask`, `modalSnapshot`), `project-note-modal` |
 | `js/features/` | `task-actions` (sil/arşivle/geri al/taşı/seç), `mail` (.eml), `ai-bridge` (`aiBoardSnapshot`, `aiApply`, `aiUndo`), `backup` (JSON dışa/içe), `reminder-notify` |
-| `js/components/` | Bağımsız bileşenler: `editor` (`RichEditor`: `create` + `sanitize`/`toPlain`/`fromPlain`), `eml` (`Eml.build`, `X-Unsent: 1`), `ai-models` (`AiModels`), `ai-chat` (`AiChat`; `AiChat.format` güvenli biçimlendirici) |
+| `js/components/` | Bağımsız bileşenler: `editor` (`RichEditor`: `create` + `sanitize`/`toPlain`/`fromPlain`), `eml` (`Eml.build`, `X-Unsent: 1`), `ai-models` (`AiModels`), `ai-chat` (`AiChat`; `AiChat.format` güvenli biçimlendirici), `multi-select` (`MultiSelect.create`: aranabilir çoklu/tekli seçici) |
 
 **Modül kuralları:** her modül kullandığı adları açıkça `import` eder; globaller (`window.X`) yok. İçe aktarılan `var`'a başka modülden **atama yapılamaz** (ES modül bağları salt okunur): değiştirilecek değer ya sahibi modülde bir fonksiyonla değiştirilir (ör. `reloadPage`, `startReminderTimer`) ya da `state` nesnesinin alanıdır. Döngüsel `import`'lar var ve sorun değil, çünkü modüllerin üst düzeyi yalnızca tanım yapar; her şey `main.js`'teki `bind()` / `boot()` ile başlar. Yeni bir üst düzey kodun başka modüldeki **değişkene** (fonksiyona değil) açılışta erişmesinden kaçının.
 
@@ -128,7 +128,7 @@ Ortam değişkenleri: `PORT`, `DATA_DIR`, `HOST`, `OPENROUTER_API_KEY` (ortamdak
 **Gizlilik:** pano: aktif işlerin ve açık hatırlatmaların (en yakın 20) özeti, notların yalnızca asistanın `list_memos` ile aradığı kısmı; proje asistanı: seçili notların ve eklerin **tam metni**. Seçili modele (OpenRouter → internet) gider. Kullanıcının gerçek verisini canlı modele **göndermeyin**; canlı denemeleri sentetik test verisiyle yapın.
 
 ## Test yaklaşımı
-Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp çalıştırılır. Aynı yöntemi tekrarlayın:
+Repoda test dosyası **yok**; (12 istek planındaki takımlar: görünüm karşılaştırma `snap`, etkileşimli gerileme `regress` ~36 kontrol, madde başına `test2`–`test7`, sunucu `servertest`; scratchpad'de, oturumla birlikte silinir — benzerini yeniden yazın.) geçici test betikleri scratchpad'de yazılıp çalıştırılır. Aynı yöntemi tekrarlayın:
 - **Gerçek veriye dokunmayın.** Testte `DATA_DIR=<scratchpad>/<klasör> PORT=3917 node server.js`. `data/` kullanıcının gerçek verisidir; kullanıcının sunucusu 3000'dedir (penceresiz servis olabilir). Gerçek veriyle bir şey doğrulamak gerekirse `data/`'yı **kopyalayıp** kopyada çalışın (yalnızca okuma isteği bile 3000'e gönderilecekse GET olsun).
 - **Tarayıcı testi:** Chrome headless (`--headless=new --remote-debugging-port=9333 --user-data-dir=<geçici>`), Node 24'ün yerleşik `WebSocket`'iyle CDP: `Runtime.evaluate`, `Page.captureScreenshot`, `Input.dispatchMouseEvent`/`dispatchKeyEvent` (gerçek fare olayları; ör. modal dışına taşan seçim), `Page.printToPDF` (gerçekçi PDF test dosyası üretmek için). Konsol hatalarını `Runtime.exceptionThrown` ile toplayın. `state` bir ES modülünün içindedir, dışarıdan (ör. `Runtime.evaluate`) erişilemez: DOM'dan okuyun ya da sunucu API'sine bakın.
 - **Sürükle-bırak**: sentetik `DragEvent` + `DataTransfer` ile (`dragstart` karta, `dragover`/`drop` sekmeye).
@@ -175,7 +175,15 @@ Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp ça
    - Hatırlatmalar; sonra kullanıcı isteğiyle **Notlarım** (tarihsiz) ayrı tür ve sayfa oldu.
    - Proje sayfaları + proje notları; `extract.js` ile ek metni; **proje asistanı** (LLM ile notlar + ekler üzerinden soru-cevap).
 10. `baslat.bat` kaldırıldı (yerini `servis-kur.bat` aldı; tarayıcıyı da o açıyor); proje git'e işlendi ve `main`'e birleştirildi; `data/` git takibinden çıkarıldı.
-11. **12 yeni istek planı (PLAN.md sonu):** kod modüllere bölündü — istemci `public/js/` (ES modülleri), HTML `public/partials/` (sunucu birleştiriyor), CSS `public/css/`, sunucu `lib/`. Davranış değişmedi (önce/sonra ekran görüntüleri piksel düzeyinde aynı).
+11. **12 yeni istek planı (PLAN.md sonu), her madde ayrı commit:**
+   - Kod modüllere bölündü — istemci `public/js/` (ES modülleri), HTML `public/partials/` (sunucu birleştiriyor), CSS `public/css/`, sunucu `lib/`. Davranış değişmedi (önce/sonra ekran görüntüleri piksel düzeyinde aynı).
+   - Masonry kart düzeni, seçim kutusu başlığın sağında, dikey gezinme menüsü.
+   - Ekip/çalışan modeli ve bir işe birden fazla ekip + çalışan (`unit` → `units[]` + `members[]` göçü); iş penceresinde aranabilir seçiciler.
+   - Kenar çubuğu: katlanır, aranabilir filtreler, "N tane daha", çalışan filtresi.
+   - Ayarlar: ekip ve çalışan yönetimi; projelerde arama/süzgeç/sıralama.
+   - Pano AI: hatırlatma ve Notlarım araçları (silme yok, Geri al).
+   - Takvim (aylık + haftalık).
+   - Test sırasında bulunanlar: varsayılan ekipler normalize edilmeden açılış çökmesi; heredoc kaynaklı bozuk kaçışlar (`/s+/`, string içinde satır sonu); `node --check`'in ES modüllerindeki hatayı kaçırması; modelin hatırlatma/not id'lerini yanıtta göstermesi.
 
 ## Kullanıcı tercihleri ve çalışma biçimi
 - Kullanıcı Türkçe yazıyor; açıklamaları ve özetleri Türkçe verin.

@@ -22,18 +22,34 @@ Uygulama, oturum açılınca arka planda (penceresiz) başlayacak şekilde kurul
 - Sunucu çıktısı `logs/server.log` dosyasına yazılır; dosya 5 MB'ı aşınca `server.log.1` olarak saklanır.
 - **Güncellemeden sonra** `servis-kur.bat`'ı tekrar çalıştırmanız yeterli: eski sunucuyu durdurur, görevi yeniden kurar ve yenisini başlatır.
 
-## Sayfalar (sol üst)
-**Pano · Projeler · Hatırlatma · Notlarım · Arşiv · Ayarlar**
+## Sayfalar (sol menü)
+**Pano · Takvim · Projeler · Hatırlatma · Notlarım · Arşiv · Ayarlar**
+
+### Sol menüdeki filtreler
+- **Sorumlu** ve **Proje** bölümleri başlıklarına tıklanarak katlanır (tercih hatırlanır). Katlıyken seçili filtre başlıkta küçük bir etiket olarak görünür; etiketteki × filtreyi kaldırır.
+- Liste uzunsa arama kutusu çıkar (Türkçe büyük/küçük harf duyarsız). İlk 6 öğe görünür, gerisi "N tane daha" ile açılır.
+- Ekip satırındaki ok, o ekibin çalışanlarını gösterir; bir çalışana tıklarsanız yalnızca onun işleri görünür.
+- Filtreler pano, takvim ve sekme sayılarına birlikte uygulanır.
 
 ### Pano
 - İşler **durum sekmeleriyle** ayrılır: `Backlog · Beklemede · Devam Ediyor · Tamamlandı · İptal`. Sekmedeki sayı, kenar çubuğu filtrelerine ve aramaya göre değişir; son seçilen sekme hatırlanır.
 - Bir kartı başka bir **sekmenin üzerine sürükleyerek** durumunu değiştirebilirsiniz. Beklemede, Devam Ediyor ve Tamamlandı için başlangıç ve bitiş tarihi zorunludur; tarihsiz bir işi bu durumlara taşırsanız tarih istenir.
 - **Arama** başlıkta, açıklamada ve durum notlarında arar (Türkçe büyük/küçük harf duyarsız). Eşleşme açıklamada ya da notta bulunduysa kartta küçük bir etiket görünür.
 - **Uyarılar:** Gecikmiş / bugün biten / yaklaşan işler ve bugünkü hatırlatmalar panonun üstünde tek satırlık özet olarak görünür. "Ayrıntılar" ile liste açılır; bir sayıya tıklamak panoyu o gruba göre filtreler.
-- **İş penceresi:** zengin metin açıklama (kalın, liste, başlık, bağlantı, tablo; resim yapıştırılabilir), dosya ekleri (dosya başına en fazla 25 MB), durum notları, bu işe bağlı hatırlatmalar ve notlar. Kaydedilmemiş değişiklik varken pencereyi kapatmaya çalışırsanız onay istenir; metin seçerken fare dışarı kaysa bile pencere kapanmaz.
+- Kartlar sütunlara boşluksuz dizilir; kartta sorumlu ekipler (en çok 2, fazlası "+N") ve atanan çalışanların baş harfleri görünür.
+- **İş penceresi:** zengin metin açıklama (kalın, liste, başlık, bağlantı, tablo; resim yapıştırılabilir), dosya ekleri (dosya başına en fazla 25 MB), durum notları, bu işe bağlı hatırlatmalar ve notlar.
+  - **Sorumlular:** bir işe birden fazla ekip ve çalışan atanabilir. Aranabilir listede ekipler ve altında çalışanları vardır; bir çalışanı seçmek ekibini de ekler, bir ekibi kaldırmak o ekibin çalışanlarını da kaldırır. En az bir ekip gerekir. Klavye: ↑↓ ile gezinin, Enter ile seçin, Esc listeyi kapatır.
+  - **Proje:** aranabilir liste; "Projesiz" ilk seçenektir. Kaydedilmemiş değişiklik varken pencereyi kapatmaya çalışırsanız onay istenir; metin seçerken fare dışarı kaysa bile pencere kapanmaz.
 - **Tarihler** her yerde `gg.aa.yyyy` (ör. 04.11.2026) biçimindedir. Elle yazılabilir ya da takvim simgesinden seçilebilir.
-- **Mail taslağı:** Kartın sol üstündeki kutuyla (ya da Ctrl+tık ile) bir veya birden fazla iş seçin (sekme başındaki "Tümünü seç" de var), alttaki çubukta "Mail taslağı oluştur"a basın. İş penceresindeki "Mail taslağı" butonu tek iş için aynısını yapar. İnen `.eml` dosyasını Outlook düzenlenebilir bir taslak olarak açar; açıklama, **tüm durum notları**, resimler ve ekler içindedir.
+- **Mail taslağı:** Kartın sağ üstündeki kutuyla (ya da Ctrl+tık ile) bir veya birden fazla iş seçin (sekme başındaki "Tümünü seç" de var), alttaki çubukta "Mail taslağı oluştur"a basın. İş penceresindeki "Mail taslağı" butonu tek iş için aynısını yapar. İnen `.eml` dosyasını Outlook düzenlenebilir bir taslak olarak açar; açıklama, **tüm durum notları**, resimler ve ekler içindedir.
   - `.eml` dosyaları Windows'ta Outlook yerine başka bir programla açılıyorsa: dosyaya sağ tıklayın → Birlikte aç → Outlook → "Her zaman bu uygulamayı kullan".
+
+### Takvim
+- **Ay** ve **Hafta** görünümü (seçim hatırlanır); ‹ Bugün › ile gezinilir, haftalar Pazartesi başlar.
+- İşler başlangıç–bitiş tarihleri arasında **çubuk** olarak görünür; rengi işin ilk ekibinden, içindeki nokta öncelikten gelir; gecikmiş işler kırmızı çerçevelidir. Yalnızca bir tarihi olan iş o güne çizilir; hiç tarihi olmayan işler takvimde yoktur, sayıları üstte yazar.
+- Ay görünümünde bir günde en çok 3 iş ve 2 hatırlatma görünür; fazlası "+N" olarak yazar ve tıklayınca o haftanın haftalık görünümü açılır. Haftalık görünümde tüm işler ve her gün için **termini** o gün olan işlerle hatırlatmalar listelenir.
+- Bir işe tıklayınca iş penceresi açılır. **Boş bir güne çift tıklayınca** başlangıç ve bitişi o gün olan yeni iş açılır.
+- Sol menü filtreleri ve panodaki arama takvime de uygulanır. Tamamlanan ve iptal edilen işler "Tamamlananlar" seçiliyken görünür.
 
 ### Projeler
 - Proje kartları: aktif iş, gecikmiş iş, not ve dosya sayıları. Bir projeye tıklayınca proje sayfası açılır:
@@ -51,15 +67,20 @@ Tarihsiz kişisel notlar; isteğe bağlı iş bağlantısı. En son güncellenen
 
 ### Arşiv ve Ayarlar
 - **Arşiv:** arşivlenmiş işler; geri alma, kalıcı silme, arama (başlık, açıklama, notlar). Arşivdeki işler otomatik silinmez.
-- **Ayarlar:** sorumlular, projeler (ekleme, yeniden adlandırma, renk, sıra, arşivleme, silme) ve AI modelleri.
+- **Ayarlar:**
+  - **Ekipler ve çalışanlar:** ekip ekleme, yeniden adlandırma, renk, sıra, silme (işler ve çalışanlar seçtiğiniz ekibe aktarılır). Ekip satırı açılınca çalışanlar: ekleme (Enter), yeniden adlandırma, **ekibini değiştirme** (atandığı işlere yeni ekip de eklenir), **aktif/pasif** (pasif çalışan yeni işlerde listelenmez ama mevcut işlerinde kalır) ve silme (işleri başka bir çalışana aktarılabilir ya da yalnızca işlerden kaldırılabilir). Ekip ya da çalışan adıyla arama yapılabilir.
+  - **Projeler:** ekleme, yeniden adlandırma, renk, arşivleme, silme; arama, Tümü / Aktif / Arşivde süzgeci, ada / iş sayısına / not sayısına göre sıralama, proje sayfasını açma.
+  - **AI modelleri** (aşağıda).
 
 ## AI asistan (pano)
-Üst çubuktaki **AI Asistan** butonu sağda bir sohbet paneli açar. Doğal dille bir veya birden fazla işi oluşturabilir, düzenleyebilir ve taşıyabilir. Örnekler:
+Üst çubuktaki **AI Asistan** butonu sağda bir sohbet paneli açar. Doğal dille işleri oluşturabilir, düzenleyebilir ve taşıyabilir; **hatırlatma** ve **Notlarım** kayıtlarını ekleyip güncelleyebilir, arayabilir. Örnekler:
 - "Veri Ambarı projesine cuma bitecek kritik bir iş ekle"
 - "Gecikmiş işlerin hepsine 'takipte' notu ekle"
-- "Test işi 12'yi Devam Ediyor'a al"
+- "Bu işi Ayşe ve Elif'e ata" (çalışan adıyla; ekipleri otomatik eklenir)
+- "Yarın 10:00 için 'bütçe sunumu' hatırlatması ekle", "Bugünkü hatırlatmamı tamamlandı yap"
+- "Notlarıma şunu ekle: …", "Notlarımda bütçe geçenleri bul"
 
-Değişiklikler hemen uygulanır ve kaydedilir. Her adımın altındaki **Geri al** butonu o adımı tümüyle geri alır. AI iş silemez ve arşivleyemez. Sohbet kaydedilmez; sayfa yenilenince sıfırlanır.
+Değişiklikler hemen uygulanır ve kaydedilir. Her adımın altındaki **Geri al** butonu o adımı (işler, hatırlatmalar ve notlar dahil) tümüyle geri alır. Hatırlatma için tarih zorunludur; vermediyseniz asistan sorar, uydurmaz. AI iş, hatırlatma ya da not silemez ve iş arşivleyemez. Sohbet kaydedilmez; sayfa yenilenince sıfırlanır.
 
 ## Proje asistanı
 Proje sayfasının üstündeki **Proje asistanı**, projenin notlarını ve eklerin metnini seçili modele vererek sorularınızı yanıtlar.
@@ -86,14 +107,14 @@ Pano asistanının kartları değiştirebilmesi için model **araç çağırmay�
 Kayıtlı modeller ve anahtarları `data/ai-models.json` dosyasında **düz metin** olarak durur; tarayıcıya gönderilmez, yedeklere ve dışa aktarmaya dahil edilmez. Anahtarı silmek için düzenlerken anahtar alanına `-` yazıp kaydedin.
 
 **Gizlilik:**
-- **Pano asistanı:** her mesajda panodaki aktif işlerin özeti (başlık, durum, sorumlu, proje, tarihler, açıklamanın ilk 300 karakteri, son not) gönderilir.
+- **Pano asistanı:** her mesajda panodaki aktif işlerin özeti (başlık, durum, sorumlu ekipler ve çalışanlar, proje, tarihler, açıklamanın ilk 300 karakteri, son not), ekip ve çalışan adları ve en yakın 20 açık hatırlatma gönderilir. Notlarım'dan yalnızca not sayısı gider; not metinleri ancak asistan notlarda arama yaptığında, bulunan notlar için gönderilir.
 - **Proje asistanı:** seçilen notların ve eklerin **tam metni** (ve isterseniz projenin işleri) gönderilir.
 - OpenRouter seçiliyse bu veriler OpenRouter'a ve modeli çalıştıran sağlayıcıya (internete) gider; yerel bir model seçiliyse yalnızca o sunucuya.
 
 ## Demo veri
 Denemek için örnek işler ekleyebilirsiniz (sunucu açıkken):
 ```
-node tools/demo-veri.js          # 28 iş, 4 proje, 3 arşiv kaydı ekler; tarihler bugüne göre (gecikmiş/bugün/yaklaşan karışık)
+node tools/demo-veri.js          # 28 iş, 4 proje, 3 arşiv kaydı ve ekiplere 8 demo çalışan ekler; tarihler bugüne göre (gecikmiş/bugün/yaklaşan karışık)
 node tools/demo-veri.js --sil    # yalnızca demo kayıtlarını kaldırır
 ```
 Mevcut verinize dokunulmaz; önce `data/backup/demo-oncesi-<zaman>.db` yedeği alınır. Demo kayıtlarının kimlikleri `demo-` ile başlar.

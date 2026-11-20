@@ -610,7 +610,7 @@ Bütün testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome 
 - [x] 5. Ayarlar: ekipler + çalışanlar, projeler (arama, filtre, sıralama)
 - [x] 6. AI hatırlatma ve not araçları + Geri al
 - [x] 7. Takvim (aylık + haftalık), filtreler, tıklama ve yeni iş
-- [ ] 8. README + CLAUDE.md; tam gerileme testi
+- [x] 8. README + CLAUDE.md; tam gerileme testi
 
 ## Doğrulama
 Tüm testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome + CDP üzerinden yapılacak. JS hataları `Runtime.exceptionThrown` ile toplanacak, sonuçlar ekran görüntüsüyle doğrulanacak. Gerçek `data/` klasörüne dokunulmayacak.
