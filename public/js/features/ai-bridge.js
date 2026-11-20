@@ -3,10 +3,10 @@ import { AiChat } from "../components/ai-chat.js";
 import { AiModels } from "../components/ai-models.js";
 import { RichEditor } from "../components/editor.js";
 import { PRIORITIES, PRIO_MAP, STATUSES, STATUS_MAP } from "../core/config.js";
-import { latestNotes, needsDates, urgency, urgencyGroup } from "../core/domain.js";
+import { latestNotes, needsDates, searchKey, urgency, urgencyGroup } from "../core/domain.js";
 import { anyOverlayOpen } from "../core/overlays.js";
 import { switchView } from "../core/render.js";
-import { UNIT_MAP, defaultUnitId, findTask, getProject, getUnit, normalizeNote, normalizeTask, state, str } from "../core/state.js";
+import { MEMBER_MAP, UNIT_MAP, assigneeText, findTask, fixAssignees, getMember, getProject, getUnit, normalizeNote, normalizeTask, state, str } from "../core/state.js";
 import { commit } from "../core/storage.js";
 import { showConfirm, toast } from "../core/ui.js";
 import { $, daysBetween, fmtDate, todayISO, trToISO, uid } from "../core/utils.js";
@@ -18,13 +18,13 @@ export var aiUndoLog = {};
 
 export function aiBoardSnapshot(){
   return {
-    units: state.units.map(function(u){ return { id: u.id, name: u.name }; }),
+    units: state.units.map(function(u){ return { id: u.id, name: u.name, members: u.members.filter(function(m){ return m.active; }).map(function(m){ return { id: m.id, name: m.name }; }) }; }),
     projects: state.projects.map(function(p){ return { id: p.id, name: p.name, status: p.status }; }),
     statuses: STATUSES.map(function(x){ return { id: x.id, name: x.name }; }),
     priorities: PRIORITIES.map(function(x){ return { id: x.id, name: x.name }; }),
     tasks: state.tasks.map(function(t){
       var n = latestNotes(t, 1)[0];
-      return { id: t.id, title: t.title, status: t.status, unit: t.unit, priority: t.priority, projectId: t.projectId,
+      return { id: t.id, title: t.title, status: t.status, units: t.units, members: t.members, priority: t.priority, projectId: t.projectId,
         startDate: t.startDate, dueDate: t.dueDate, due: aiDueText(t), description: t.description.slice(0, 300), lastNote: n ? n.text.slice(0, 200) : "" };
     })
   };
@@ -46,7 +46,8 @@ export function aiListTasks(a){
   var list = state.tasks.filter(function(t){
     if(groups && groups.indexOf(urgencyGroup(t)) === -1) return false;
     if(a.status && t.status !== a.status) return false;
-    if(a.unit && t.unit !== a.unit) return false;
+    if(a.unit && t.units.indexOf(resolveUnit(a.unit)) === -1) return false;
+    if(a.member && t.members.indexOf(resolveMember(a.member)) === -1) return false;
     if(a.priority && t.priority !== a.priority) return false;
     if(a.projectId === "none" && t.projectId) return false;
     if(a.projectId && a.projectId !== "none" && t.projectId !== a.projectId) return false;
@@ -56,9 +57,40 @@ export function aiListTasks(a){
   }).sort(function(x, y){ return (x.dueDate || "9999").localeCompare(y.dueDate || "9999"); });
   return { count: list.length, tasks: list.slice(0, 100).map(function(t){
     var p = getProject(t.projectId);
-    return { id: t.id, title: t.title, status: STATUS_MAP[t.status].name, unit: getUnit(t.unit).name, priority: PRIO_MAP[t.priority].name,
+    return { id: t.id, title: t.title, status: STATUS_MAP[t.status].name, assignees: assigneeText(t), priority: PRIO_MAP[t.priority].name,
       project: p ? p.name : "", dueDate: t.dueDate, due: aiDueText(t) };
   }) };
+}
+/* Ekip / çalışan: id ya da ad (Türkçe harf duyarsız) kabul edilir; bulunamazsa "" */
+export function resolveUnit(v){
+  v = str(v).trim(); if(UNIT_MAP[v]) return v;
+  var k = searchKey(v), u = state.units.filter(function(x){ return searchKey(x.name) === k; })[0];
+  return u ? u.id : "";
+}
+export function resolveMember(v){
+  v = str(v).trim(); if(MEMBER_MAP[v]) return v;
+  var k = searchKey(v), all = Object.keys(MEMBER_MAP).map(function(id){ return MEMBER_MAP[id]; });
+  var m = all.filter(function(x){ return searchKey(x.name) === k; });
+  if(!m.length) m = all.filter(function(x){ return searchKey(x.name).split(/\s+/)[0] === k; });   // yalnızca ad: "Ayşe"
+  return m.length === 1 ? m[0].id : "";
+}
+/* Araç argümanındaki units / members (eski "unit" de kabul) → { units, members, changed } ya da { error }.
+   t verilirse güncellemedir: gönderilmeyen alan korunur; ekip listesi değişirse dışarıda kalan ekiplerin çalışanları çıkarılır. */
+export function aiAssignees(a, t){
+  var uIn = a.units !== undefined ? a.units : a.unit !== undefined ? [a.unit] : undefined, mIn = a.members;
+  if(uIn !== undefined && !Array.isArray(uIn)) uIn = [uIn];
+  if(mIn !== undefined && !Array.isArray(mIn)) mIn = [mIn];
+  if(t && uIn === undefined && mIn === undefined) return { changed: false };
+  var units = [], members = [], bad = [];
+  (uIn || []).forEach(function(v){ var id = resolveUnit(v); if(id) units.push(id); else bad.push("ekip bulunamadı (" + str(v) + ")"); });
+  (mIn || []).forEach(function(v){ var id = resolveMember(v); if(id) members.push(id); else bad.push("çalışan bulunamadı ya da birden fazla eşleşme var (" + str(v) + ")"); });
+  if(bad.length) return { error: bad.join("; ") };
+  if(t){
+    if(uIn === undefined) units = t.units.slice();
+    if(mIn === undefined) members = t.members.filter(function(m){ return units.indexOf(getMember(m).unitId) !== -1; });
+  }
+  var f = fixAssignees(units, members);
+  return { units: f.units, members: f.members, changed: true };
 }
 export function clone(o){ return JSON.parse(JSON.stringify(o)); }
 /* undefined: alan gönderilmedi · "": temizle · ISO: geçerli · null: geçersiz */
@@ -98,7 +130,7 @@ export function aiApply(calls){
     if(name === "get_task"){
       var g = findTask(str(args.id));
       res.results.push({ tool_call_id: call.id, content: JSON.stringify(g ? {
-        id: g.id, title: g.title, status: g.status, unit: g.unit, priority: g.priority, projectId: g.projectId,
+        id: g.id, title: g.title, status: g.status, units: g.units, members: g.members, assignees: assigneeText(g), priority: g.priority, projectId: g.projectId,
         startDate: g.startDate, dueDate: g.dueDate, createdAt: g.createdAt, description: g.description,
         notes: g.notes.map(function(n){ return { date: n.date, text: n.text }; }), attachments: g.attachments.map(function(a){ return a.name; })
       } : { error: "Bu id ile aktif iş yok" }) });
@@ -115,8 +147,8 @@ export function aiApply(calls){
         var who = "yeni iş #" + (i + 1), title = str(it.title).trim().slice(0, 300);
         if(!title) return skip(who, "başlık boş");
         who = '"' + title + '"';
-        var unit = it.unit ? str(it.unit) : defaultUnitId();
-        if(!UNIT_MAP[unit]) return skip(who, "sorumlu bulunamadı (" + unit + ")");
+        var asg = aiAssignees(it, null);
+        if(asg.error) return skip(who, asg.error);
         var prio = it.priority ? str(it.priority) : "orta";
         if(!PRIO_MAP[prio]) return skip(who, "geçersiz öncelik (" + prio + ")");
         var status = it.status ? str(it.status) : "backlog";
@@ -127,7 +159,7 @@ export function aiApply(calls){
         if(start === null || due === null) return skip(who, "tarih geçersiz (YYYY-AA-GG olmalı)");
         var rule = aiDateRule(status, start || "", due || "");
         if(rule) return skip(who, rule);
-        var t = normalizeTask({ id: uid(), title: title, unit: unit, priority: prio, status: status, projectId: pid,
+        var t = normalizeTask({ id: uid(), title: title, units: asg.units, members: asg.members, priority: prio, status: status, projectId: pid,
           startDate: start || "", dueDate: due || "", createdAt: todayISO(), updatedAt: todayISO(),
           descriptionHtml: RichEditor.fromPlain(str(it.description)), notes: it.note && str(it.note).trim() ? [aiNote(it.note)] : [] });
         state.tasks.push(t); created.push(t.id);
@@ -141,7 +173,8 @@ export function aiApply(calls){
         if(!t) return skip(str(u.id) || "(id yok)", "aktif iş bulunamadı (arşivde ya da silinmiş olabilir)");
         var who = label(t);
         if(u.title !== undefined && !str(u.title).trim()) return skip(who, "başlık boş olamaz");
-        if(u.unit !== undefined && !UNIT_MAP[str(u.unit)]) return skip(who, "sorumlu bulunamadı (" + u.unit + ")");
+        var asg = aiAssignees(u, t);
+        if(asg.error) return skip(who, asg.error);
         if(u.priority !== undefined && !PRIO_MAP[str(u.priority)]) return skip(who, "geçersiz öncelik (" + u.priority + ")");
         if(u.projectId !== undefined && str(u.projectId) && !getProject(str(u.projectId))) return skip(who, "proje bulunamadı (" + u.projectId + ")");
         var start = aiDate(u.startDate), due = aiDate(u.dueDate);
@@ -151,7 +184,7 @@ export function aiApply(calls){
         remember(t);
         if(u.title !== undefined) t.title = str(u.title).trim().slice(0, 300);
         if(u.description !== undefined) aiSetDesc(t, u.description);
-        if(u.unit !== undefined) t.unit = str(u.unit);
+        if(asg.changed){ t.units = asg.units; t.members = asg.members; }
         if(u.priority !== undefined) t.priority = str(u.priority);
         if(u.projectId !== undefined) t.projectId = str(u.projectId);
         if(start !== undefined) t.startDate = start;

@@ -31,6 +31,12 @@ export function relLabel(iso){
   return d === 0 ? "Bugün" : d === 1 ? "Dün" : fmtDate(iso);
 }
 export function uid(){ return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+/* "Ayşe Nur Kaya" → "AK" */
+export function initials(name){
+  var w = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if(!w.length) return "?";
+  return (w[0].charAt(0) + (w.length > 1 ? w[w.length - 1].charAt(0) : "")).toLocaleUpperCase("tr");
+}
 export function esc(s){
   return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];

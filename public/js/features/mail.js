@@ -2,7 +2,7 @@
 import { Eml } from "../components/eml.js";
 import { MAIL_ATT_WARN, PRIO_MAP, STATUS_MAP } from "../core/config.js";
 import { dueText, latestNotes, urgencyGroup } from "../core/domain.js";
-import { getProject, getUnit } from "../core/state.js";
+import { assigneeText, getProject, getUnit } from "../core/state.js";
 import { showConfirm, showInfo, toast } from "../core/ui.js";
 import { download, esc, fmtDate, fmtSize, pad, todayISO } from "../core/utils.js";
 
@@ -25,12 +25,12 @@ export function mailRow(label, value){
     '<td style="padding:3px 0;font-size:13.5px;vertical-align:top">' + value + '</td></tr>';
 }
 export function mailTaskHtml(t, withAtt){
-  var u = getUnit(t.unit), p = getProject(t.projectId), pr = PRIO_MAP[t.priority], st = STATUS_MAP[t.status];
+  var u = getUnit(t.units[0]), p = getProject(t.projectId), pr = PRIO_MAP[t.priority], st = STATUS_MAP[t.status];
   var g = urgencyGroup(t);
   var due = t.dueDate ? fmtDate(t.dueDate) + (g ? ' <span style="color:' + (g === "over" ? "#C2410C" : "#B45309") + ';font-weight:600">(' + dueText(t) + ')</span>' : "") : "";
   var rows = mailRow("Durum", esc(st.name)) +
     mailRow("Öncelik", '<span style="color:' + pr.hex + ';font-weight:600">' + esc(pr.name) + '</span>') +
-    mailRow("Sorumlu", esc(u.name)) +
+    mailRow("Sorumlu", esc(assigneeText(t))) +
     (p ? mailRow("Proje", esc(p.name)) : "") +
     (t.startDate ? mailRow("Başlangıç", fmtDate(t.startDate)) : "") +
     (due ? mailRow("Termin", due) : "");
@@ -54,8 +54,8 @@ export function mailTaskHtml(t, withAtt){
     '</td></tr></table>';
 }
 export function mailTaskText(t, withAtt){
-  var u = getUnit(t.unit), p = getProject(t.projectId);
-  var lines = [t.title, "Durum: " + STATUS_MAP[t.status].name, "Öncelik: " + PRIO_MAP[t.priority].name, "Sorumlu: " + u.name];
+  var p = getProject(t.projectId);
+  var lines = [t.title, "Durum: " + STATUS_MAP[t.status].name, "Öncelik: " + PRIO_MAP[t.priority].name, "Sorumlu: " + assigneeText(t)];
   if(p) lines.push("Proje: " + p.name);
   if(t.startDate) lines.push("Başlangıç: " + fmtDate(t.startDate));
   if(t.dueDate) lines.push("Termin: " + fmtDate(t.dueDate) + (urgencyGroup(t) ? " (" + dueText(t) + ")" : ""));

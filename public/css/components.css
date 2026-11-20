@@ -1,0 +1,55 @@
+/* Ortak bileşenler: aranabilir seçici (js/components/multi-select.js), çalışan rozetleri */
+  /* Seçici kutusu */
+  .ms{ position:relative; }
+  .ms-control{
+    display:flex; align-items:flex-start; gap:6px; min-height:40px; padding:5px 8px 5px 6px; border:1px solid var(--border);
+    border-radius:9px; background:var(--surface); cursor:pointer; transition:border-color .12s ease, box-shadow .12s ease;
+  }
+  .ms-control:hover{ border-color:#C9D1DC; }
+  .ms-control:focus, .ms.open .ms-control{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .ms-chips{ flex:1; min-width:0; display:flex; flex-wrap:wrap; gap:5px; max-height:96px; overflow-y:auto; padding:1px 0; }
+  .ms-placeholder{ color:var(--text-faint); font-size:13.5px; padding:4px 4px; }
+  .ms-caret{ flex-shrink:0; color:var(--text-faint); display:flex; padding:6px 2px 0; }
+  .ms-caret svg{ width:15px; height:15px; transition:transform .15s ease; }
+  .ms.open .ms-caret svg{ transform:rotate(180deg); }
+  .ms-chip{
+    display:inline-flex; align-items:center; gap:6px; max-width:100%; padding:3px 4px 3px 8px; border-radius:20px;
+    background:var(--neutral-soft); font-size:12.5px; font-weight:600; color:var(--text); line-height:1.3;
+  }
+  .ms-chip.sub{ font-weight:500; padding-left:4px; }
+  .ms-chip-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ms-x{ border:none; background:transparent; color:var(--text-faint); font-size:15px; line-height:1; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; padding:0; }
+  .ms-x:hover{ background:var(--danger-soft); color:var(--danger); }
+  .ms-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ms-avatar{
+    width:20px; height:20px; border-radius:50%; flex-shrink:0; color:#fff; font-size:9.5px; font-weight:700; letter-spacing:.02em;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  /* Açılır liste (body'ye eklenir) */
+  .ms-pop{
+    position:fixed; z-index:120; background:var(--surface); border:1px solid var(--border); border-radius:11px;
+    box-shadow:var(--shadow-lg); overflow:hidden; display:flex; flex-direction:column;
+  }
+  .ms-search{ border:none; border-bottom:1px solid var(--border-soft); padding:11px 13px; font-size:13.5px; outline:none; background:transparent; color:var(--text); }
+  .ms-list{ overflow-y:auto; padding:5px; }
+  .ms-opt{ display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:7px; font-size:13.5px; font-weight:600; color:var(--text); cursor:pointer; user-select:none; }
+  .ms-opt.sub{ padding-left:30px; font-weight:400; }
+  .ms-opt.active{ background:var(--surface-hover); }
+  .ms-opt .ms-label{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ms-hint{ font-size:11.5px; font-weight:500; color:var(--text-faint); white-space:nowrap; }
+  .ms-box{
+    width:16px; height:16px; flex-shrink:0; border-radius:4px; border:1.5px solid var(--border); background:var(--surface);
+    display:flex; align-items:center; justify-content:center; color:transparent;
+  }
+  .ms-box svg{ width:11px; height:11px; }
+  .ms-opt.on .ms-box{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .ms-empty{ padding:14px; font-size:13px; color:var(--text-faint); text-align:center; }
+
+  /* Kartta çalışan rozetleri (baş harfler, ekip rengi) */
+  .member-stack{ display:inline-flex; align-items:center; padding-left:4px; }
+  .member-stack .avatar{
+    width:22px; height:22px; border-radius:50%; margin-left:-5px; border:2px solid var(--surface); color:#fff;
+    font-size:9.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; letter-spacing:.02em;
+  }
+  .member-stack .avatar.more{ background:var(--neutral-soft); color:var(--text-soft); }
+  .unit-tag.unit-more{ background:var(--neutral-soft); color:var(--text-soft); padding:3px 8px; }

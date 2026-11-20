@@ -28,7 +28,8 @@ export function hasDates(t){ return !!(t.startDate && t.dueDate); }
 export function needsDates(status){ return status !== "backlog" && status !== "iptal"; }
 export function allTasks(){ return state.tasks.concat(state.archive); }
 export function projectTaskCount(id){ return allTasks().filter(function(t){ return t.projectId === id; }).length; }
-export function unitTaskCount(id){ return allTasks().filter(function(t){ return t.unit === id; }).length; }
+export function unitTaskCount(id){ return allTasks().filter(function(t){ return t.units.indexOf(id) !== -1; }).length; }
+export function memberTaskCount(id){ return allTasks().filter(function(t){ return t.members.indexOf(id) !== -1; }).length; }
 /* Arama için Türkçe küçük harfe çevirir; "ı" de "i" sayılır (ISTANBUL / İstanbul / istanbul eşleşsin) */
 export function searchKey(s){ return String(s || "").toLocaleLowerCase("tr").replace(/ı/g, "i"); }
 /* Eşleşme yoksa "", varsa nerede bulunduğu: "title" | "desc" | "note" */
@@ -42,7 +43,8 @@ export function taskMatch(t, q){
 export function filteredTasks(){
   var q = searchKey(state.search.trim());
   return state.tasks.filter(function(t){
-    if(state.filterUnit !== "all" && t.unit !== state.filterUnit) return false;
+    if(state.filterUnit !== "all" && t.units.indexOf(state.filterUnit) === -1) return false;
+    if(state.filterMember !== "all" && t.members.indexOf(state.filterMember) === -1) return false;
     if(state.filterPrio !== "all" && t.priority !== state.filterPrio) return false;
     if(state.filterProject === "none" && t.projectId) return false;
     if(state.filterProject !== "all" && state.filterProject !== "none" && t.projectId !== state.filterProject) return false;

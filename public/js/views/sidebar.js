@@ -29,7 +29,7 @@ export function renderSidebar(){
     '<span class="unit-dot" style="background:#fff;"></span><span class="unit-name">Tümü</span>' +
     '<span class="unit-count">' + state.tasks.length + '</span></button>';
   state.units.forEach(function(u){
-    var c = state.tasks.filter(function(t){ return t.unit === u.id; }).length;
+    var c = state.tasks.filter(function(t){ return t.units.indexOf(u.id) !== -1; }).length;
     h += '<button class="unit-item ' + (state.filterUnit === u.id ? "active" : "") + '" data-unit="' + u.id + '">' +
       '<span class="unit-dot" style="background:' + u.color + ';"></span><span class="unit-name">' + esc(u.name) + '</span>' +
       '<span class="unit-count">' + c + '</span></button>';

@@ -1,17 +1,45 @@
 /* İş penceresi: form, editör, durum notları, ekler, kaydetme */
 import { RichEditor } from "../components/editor.js";
+import { MultiSelect } from "../components/multi-select.js";
 import { ICON, MAX_UPLOAD, PRIORITIES, STATUSES } from "../core/config.js";
 import { needsDates } from "../core/domain.js";
-import { UNIT_MAP, defaultUnitId, findTask, getUnit, normalizeAttachment, normalizeTask, state } from "../core/state.js";
+import { defaultUnitId, findTask, fixAssignees, normalizeAttachment, normalizeTask, state } from "../core/state.js";
 import { Storage, commit } from "../core/storage.js";
 import { bindBackdropClose, bindDateField, openPicker, showConfirm, toast } from "../core/ui.js";
-import { $, esc, fmtDate, fmtSize, isoToTR, relLabel, todayISO, trToISO, uid } from "../core/utils.js";
+import { $, esc, fmtDate, fmtSize, initials, isoToTR, relLabel, todayISO, trToISO, uid } from "../core/utils.js";
 import { mailTasks } from "../features/mail.js";
 import { deleteTask } from "../features/task-actions.js";
 import { memoTime, taskMemos } from "../views/memos.js";
 import { remGroup, remWhen, taskReminders } from "../views/reminders.js";
 
 export var editor = null;
+/* Sorumlular seçicisi: değerler "u:<ekip id>" ve "m:<çalışan id>" */
+export var assigneeSelect = null;
+export function assigneeOptions(){
+  var cur = assigneeSelect ? assigneeSelect.get() : [], out = [];
+  state.units.forEach(function(u){
+    var active = u.members.filter(function(m){ return m.active; }).length;
+    out.push({ value: "u:" + u.id, label: u.name, color: u.color, hint: active ? active + " çalışan" : "" });
+    u.members.forEach(function(m){
+      if(!m.active && cur.indexOf("m:" + m.id) === -1) return;   // pasif çalışan yalnızca zaten atanmışsa görünür
+      out.push({ value: "m:" + m.id, label: m.name, color: u.color, parent: "u:" + u.id, avatar: initials(m.name), hint: m.active ? "" : "pasif" });
+    });
+  });
+  cur.forEach(function(v){   // silinmiş ekip/çalışan: seçim kaybolmasın, çip olarak görünsün
+    if(!out.some(function(x){ return x.value === v; })) out.push({ value: v, label: v.charAt(0) === "u" ? "(silinmiş ekip)" : "(silinmiş çalışan)", hidden: true });
+  });
+  return out;
+}
+export function assigneeValues(t){
+  return t.units.map(function(id){ return "u:" + id; }).concat(t.members.map(function(id){ return "m:" + id; }));
+}
+export function readAssignees(){
+  var v = assigneeSelect.get();
+  return {
+    units: v.filter(function(x){ return x.indexOf("u:") === 0; }).map(function(x){ return x.slice(2); }),
+    members: v.filter(function(x){ return x.indexOf("m:") === 0; }).map(function(x){ return x.slice(2); })
+  };
+}
 
 export function buildSeg(id, options, current){
   var el = $(id);
@@ -78,11 +106,6 @@ export function uploadImage(file){
   }).then(function(src){ state.uploading--; return src; });
 }
 
-export function unitOptionsFor(t){
-  var opts = state.units.slice();
-  if(t && !UNIT_MAP[t.unit]) opts.push(getUnit(t.unit));   // silinmiş sorumlu, seçim kaybolmasın
-  return opts;
-}
 export function openModal(id){
   var t = id ? findTask(id) : null;
   state.editingId = t ? t.id : null;
@@ -94,7 +117,7 @@ export function openModal(id){
   editor.setHtml(t ? t.descriptionHtml : "");
   $("fStart").value = t ? isoToTR(t.startDate) : "";
   $("fDue").value = t ? isoToTR(t.dueDate) : "";
-  buildSeg("fUnitSeg", unitOptionsFor(t), t ? t.unit : defaultUnitId());
+  assigneeSelect.set(t ? assigneeValues(t) : ["u:" + defaultUnitId()]);
   buildSeg("fPrioSeg", PRIORITIES, t ? t.priority : "orta");
 
   var cur = t ? t.projectId : "";
@@ -129,12 +152,12 @@ export function openModal(id){
   state.modalBase = modalSnapshot();
   $("fTitle").focus();
 }
-export function closeModal(){ $("overlay").classList.remove("show"); state.editingId = null; state.pendingStatus = null; state.modalBase = null; }
+export function closeModal(){ assigneeSelect.close(); $("overlay").classList.remove("show"); state.editingId = null; state.pendingStatus = null; state.modalBase = null; }
 /* Formun o anki hali; açılıştaki halden farklıysa kapatmadan önce sorulur */
 export function modalSnapshot(){
   return JSON.stringify([
     $("fTitle").value, editor.getHtml(), $("fStart").value, $("fDue").value,
-    $("fUnitSeg").dataset.value, $("fPrioSeg").dataset.value, $("fProject").value, $("fStatus").value,
+    assigneeSelect.get().slice().sort().join(","), $("fPrioSeg").dataset.value, $("fProject").value, $("fStatus").value,
     state.modalNotes.map(function(n){ return n.id; }),
     state.modalAttachments.map(function(a){ return a.id || a.name; }),
     $("fNoteInput").value.trim()
@@ -174,12 +197,15 @@ export function saveTask(){
     (!start ? $("fStart") : $("fDue")).focus(); return null;
   }
   if(start && due && due < start){ toast("Bitiş tarihi başlangıç tarihinden önce olamaz", true); $("fDue").focus(); return null; }
+  var picked = readAssignees();
+  if(!picked.units.length && !picked.members.length){ toast("En az bir sorumlu ekip seçin", true); $("fAssignees").querySelector(".ms-control").focus(); return null; }
+  var asg = fixAssignees(picked.units, picked.members);
   addNote();   // not kutusuna yazılıp "Ekle"ye basılmamış metin kaybolmasın
 
   var html = editor.getHtml();
   var fields = {
     title: title, descriptionHtml: html, description: RichEditor.toPlain(html),
-    unit: $("fUnitSeg").dataset.value, priority: $("fPrioSeg").dataset.value,
+    units: asg.units, members: asg.members, priority: $("fPrioSeg").dataset.value,
     projectId: $("fProject").value, status: status, startDate: start, dueDate: due,
     notes: state.modalNotes.slice(),
     attachments: state.modalAttachments.filter(function(a){ return a && !a.uploading; }),
@@ -195,6 +221,10 @@ export function saveTask(){
 
 /* Olay bağlama (main.js → bind) */
 export function bindTaskModal(){
+  assigneeSelect = MultiSelect.create($("fAssignees"), {
+    multiple: true, linkParents: true, options: assigneeOptions,
+    placeholder: "Ekip veya çalışan seçin…", searchPlaceholder: "Ekip ya da çalışan ara…", emptyText: "Eşleşen ekip ya da çalışan yok"
+  });
   editor = RichEditor.create($("fDescEditor"), {
     onImage: uploadImage,
     onAttach: function(){ $("attInput").click(); },

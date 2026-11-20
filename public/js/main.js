@@ -1,6 +1,6 @@
 /* Giriş noktası: olay bağlama (bind) ve açılış (boot) */
 import { AiChat } from "./components/ai-chat.js";
-import { anyOverlayOpen } from "./core/overlays.js";
+import { anyOverlayOpen, topOverlayClose } from "./core/overlays.js";
 import { renderAll, switchView } from "./core/render.js";
 import { applyServerState, state } from "./core/state.js";
 import { Storage } from "./core/storage.js";
@@ -18,7 +18,7 @@ import { bindMemos } from "./views/memos.js";
 import { bindProjectAssistant } from "./views/project-assistant.js";
 import { bindProjects } from "./views/projects.js";
 import { bindReminders } from "./views/reminders.js";
-import { bindSettings } from "./views/settings.js";
+import { bindSettings, closeColorPops } from "./views/settings.js";
 import { bindSidebar } from "./views/sidebar.js";
 
 function bind(){
@@ -46,6 +46,13 @@ function bind(){
   $("tabArchive").onclick = function(){ switchView("archive"); };
   $("tabSettings").onclick = function(){ switchView("settings"); };
   $("tabReminders").onclick = function(){ switchView("reminders"); };
+
+  /* Esc: önce açık renk paleti, sonra en üstteki pencere (açılır seçiciler Esc'yi kendileri yakalar) */
+  document.onkeydown = function(e){
+    if(e.key !== "Escape") return;
+    if(document.querySelector(".color-pop.open")) return closeColorPops();
+    topOverlayClose();
+  };
 
   /* Kayıt bitmeden sekme kapanırsa uyar */
   window.addEventListener("beforeunload", function(e){

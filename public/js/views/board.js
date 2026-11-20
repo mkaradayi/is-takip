@@ -1,8 +1,8 @@
 /* Pano: durum sekmeleri, kartlar, sürükle-bırak, seçim çubuğu */
 import { ICON, PREF_STATUS_TAB, PRIO_MAP, STATUSES, STATUS_MAP } from "../core/config.js";
 import { dueText, filteredTasks, latestNotes, searchKey, selectedTasks, selectionCount, taskMatch, urgency } from "../core/domain.js";
-import { findTask, getProject, getUnit, state } from "../core/state.js";
-import { $, esc, fmtDate, pref } from "../core/utils.js";
+import { findTask, getMember, getProject, getUnit, state } from "../core/state.js";
+import { $, esc, fmtDate, initials, pref } from "../core/utils.js";
 import { mailTasks } from "../features/mail.js";
 import { archiveTask, clearSelection, deleteTask, moveTask, toggleSelect, toggleTab } from "../features/task-actions.js";
 import { openModal } from "../modals/task-modal.js";
@@ -46,9 +46,22 @@ export function projectTag(t){
   var p = getProject(t.projectId);
   return p ? '<span class="project-tag" style="background:' + p.color + '22; color:' + p.color + ';">' + ICON.folder + esc(p.name) + '</span>' : "";
 }
+/* Sorumlular: en çok 2 ekip etiketi (+N), ardından çalışanların baş harfleri (ekip rengiyle) */
+var MAX_UNIT_TAGS = 2, MAX_AVATARS = 3;
 export function unitTag(t){
-  var u = getUnit(t.unit);
-  return '<span class="unit-tag" style="background:' + u.color + '22; color:' + u.color + ';"><span class="dot" style="background:' + u.color + ';"></span>' + esc(u.name) + '</span>';
+  var us = t.units.map(getUnit);
+  var h = us.slice(0, MAX_UNIT_TAGS).map(function(u){
+    return '<span class="unit-tag" style="background:' + u.color + '22; color:' + u.color + ';"><span class="dot" style="background:' + u.color + ';"></span>' + esc(u.name) + '</span>';
+  }).join("");
+  if(us.length > MAX_UNIT_TAGS) h += '<span class="unit-tag unit-more" title="' + esc(us.slice(MAX_UNIT_TAGS).map(function(u){ return u.name; }).join(", ")) + '">+' + (us.length - MAX_UNIT_TAGS) + '</span>';
+  return h + memberStack(t);
+}
+export function memberStack(t){
+  if(!t.members.length) return "";
+  var ms = t.members.map(getMember);
+  return '<span class="member-stack" title="' + esc(ms.map(function(m){ return m.name; }).join(", ")) + '">' + ms.slice(0, MAX_AVATARS).map(function(m){
+    return '<span class="avatar" style="background:' + getUnit(m.unitId).color + ';">' + esc(initials(m.name)) + '</span>';
+  }).join("") + (ms.length > MAX_AVATARS ? '<span class="avatar more">+' + (ms.length - MAX_AVATARS) + '</span>' : "") + '</span>';
 }
 export function prioFlag(t){
   var p = PRIO_MAP[t.priority];

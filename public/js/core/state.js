@@ -5,6 +5,8 @@ import { Storage } from "./storage.js";
 import { $, pref, todayISO, uid } from "./utils.js";
 
 export var UNIT_MAP = {};
+/* çalışan id → { id, name, active, unitId } (her çalışan tek bir ekibe bağlı) */
+export var MEMBER_MAP = {};
 
 export var state = {
   tasks: [], projects: [], archive: [], units: [], reminders: [], memos: [], projectNotes: [],
@@ -12,7 +14,7 @@ export var state = {
   view: "board",
   remEditing: null, remShowDone: false, remPresetTask: "",
   memoEditing: null, memoSearch: "", memoPresetTask: "",
-  filterUnit: "all", filterPrio: "all", filterProject: "all", urgencyFilter: null,
+  filterUnit: "all", filterMember: "all", filterPrio: "all", filterProject: "all", urgencyFilter: null,
   statusTab: STATUS_MAP[pref(PREF_STATUS_TAB)] ? pref(PREF_STATUS_TAB) : "devam", search: "", archiveSearch: "",
   editingId: null, modalNotes: [], modalAttachments: [], uploading: 0, pendingStatus: null, modalBase: null,
   selected: {},
@@ -28,14 +30,42 @@ export function isoDay(v){ return typeof v === "string" && ISO_DAY.test(v) ? v.s
 export function setUnits(list){
   state.units = list.slice().sort(function(a, b){ return a.order - b.order; });
   state.units.forEach(function(u, i){ u.order = i; });
-  UNIT_MAP = {}; state.units.forEach(function(u){ UNIT_MAP[u.id] = u; });
+  UNIT_MAP = {}; MEMBER_MAP = {};
+  state.units.forEach(function(u){
+    UNIT_MAP[u.id] = u;
+    u.members.forEach(function(m){ if(!MEMBER_MAP[m.id]) MEMBER_MAP[m.id] = { id: m.id, name: m.name, active: m.active, unitId: u.id }; });
+  });
+}
+export function getMember(id){ return MEMBER_MAP[id] || { id: id, name: "(silinmiş çalışan)", active: false, unitId: "", missing: true }; }
+/* İşin sorumluları okunur biçimde: "Veri Yönetimi (Ali Kaya, Ayşe Demir), Veri Mimarisi" */
+export function assigneeText(t){
+  return t.units.map(function(uid){
+    var names = t.members.filter(function(m){ return getMember(m).unitId === uid; }).map(function(m){ return getMember(m).name; });
+    return getUnit(uid).name + (names.length ? " (" + names.join(", ") + ")" : "");
+  }).concat(t.members.filter(function(m){ var mm = getMember(m); return t.units.indexOf(mm.unitId) === -1; }).map(function(m){ return getMember(m).name; })).join(", ");
+}
+/* Tekrarsız, doğrulanmış kimlik listesi */
+export function idList(v, max){
+  var out = [];
+  (Array.isArray(v) ? v : []).forEach(function(x){ var id = safeId(x); if(id && out.indexOf(id) === -1 && out.length < (max || 50)) out.push(id); });
+  return out;
+}
+/* units/members dizilerini düzenler: çalışanın ekibi listede yoksa eklenir, en az bir ekip olur */
+export function fixAssignees(units, members){
+  units = idList(units); members = idList(members);
+  members.forEach(function(m){ var mm = MEMBER_MAP[m]; if(mm && units.indexOf(mm.unitId) === -1) units.push(mm.unitId); });
+  if(!units.length) units = [defaultUnitId()];
+  return { units: units, members: members };
 }
 export function getUnit(id){ return UNIT_MAP[id] || { id: id, name: "(silinmiş sorumlu)", color: "#9AA1AD", missing: true }; }
 export function defaultUnitId(){ return state.units.length ? state.units[0].id : "diger"; }
 export function normalizeUnit(u, i){
   u = u || {};
   return { id: safeId(u.id) || uid(), name: str(u.name).trim() || "Adsız sorumlu",
-    color: HEX_COLOR.test(u.color) ? u.color : "#6B7280", order: typeof u.order === "number" ? u.order : i };
+    color: HEX_COLOR.test(u.color) ? u.color : "#6B7280", order: typeof u.order === "number" ? u.order : i,
+    members: (Array.isArray(u.members) ? u.members : []).filter(function(m){ return m && typeof m === "object"; }).slice(0, 500).map(function(m){
+      return { id: safeId(m.id) || uid(), name: str(m.name).trim().slice(0, 80) || "Adsız çalışan", active: m.active !== false };
+    }) };
 }
 
 export function normalizeNote(n){
@@ -49,8 +79,10 @@ export function normalizeAttachment(a){
 }
 export function normalizeTask(t){
   t = t || {};
+  /* eski biçim: tek "unit" alanı → units: [unit] */
+  var asg = fixAssignees(Array.isArray(t.units) ? t.units : [safeId(t.unit)], t.members);
   var html = typeof t.descriptionHtml === "string" ? RichEditor.sanitize(t.descriptionHtml) : RichEditor.fromPlain(str(t.description));
-  return Object.assign({
+  var out = Object.assign({
     id: uid(), title: "", description: "", priority: "orta", status: "backlog",
     projectId: "", startDate: "", dueDate: "", createdAt: todayISO(), updatedAt: todayISO(), notes: []
   }, t, {
@@ -58,7 +90,7 @@ export function normalizeTask(t){
     title: str(t.title),
     descriptionHtml: html,
     description: typeof t.descriptionHtml === "string" ? RichEditor.toPlain(html) : str(t.description),
-    unit: safeId(t.unit) || defaultUnitId(),      // bilinmeyen sorumlu olduğu gibi kalır; "(silinmiş sorumlu)" olarak görünür
+    units: asg.units, members: asg.members,        // bilinmeyen ekip/çalışan olduğu gibi kalır; "(silinmiş …)" olarak görünür
     priority: PRIO_MAP[t.priority] ? t.priority : "orta",
     status: STATUS_MAP[t.status] ? t.status : "backlog",
     projectId: safeId(t.projectId),
@@ -67,6 +99,8 @@ export function normalizeTask(t){
     notes: Array.isArray(t.notes) ? t.notes.map(normalizeNote) : [],
     attachments: Array.isArray(t.attachments) ? t.attachments.map(normalizeAttachment).filter(Boolean) : []
   });
+  delete out.unit;
+  return out;
 }
 export function normalizeProject(p){
   p = p || {};
@@ -124,7 +158,7 @@ export function unitsFrom(list){
   var seen = {}, out = (Array.isArray(list) ? list : []).map(normalizeUnit).filter(function(u){
     if(seen[u.id]) return false; seen[u.id] = true; return true;
   });
-  return out.length ? out : DEFAULT_UNITS.map(function(u){ return Object.assign({}, u); });
+  return out.length ? out : DEFAULT_UNITS.map(normalizeUnit);   // normalize: members: [] vb. alanlar da eklensin
 }
 export function applyServerState(data){
   Storage.adopt(data.meta);

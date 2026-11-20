@@ -48,7 +48,7 @@ export function renderAlerts(){
       var p = getProject(t.projectId), d = daysBetween(todayISO(), t.dueDate);
       var txt = g.id === "over" ? Math.abs(d) + " gün" : g.id === "today" ? "son gün" : d + " gün kaldı";
       return '<button type="button" class="a-row" data-open="' + t.id + '">' +
-        '<span class="dot" style="background:' + getUnit(t.unit).color + ';"></span>' +
+        '<span class="dot" style="background:' + getUnit(t.units[0]).color + ';"></span>' +
         '<span class="a-row-main"><span class="a-row-title">' + esc(t.title) + '</span>' +
         (p ? '<span class="a-row-proj">' + esc(p.name) + '</span>' : "") + '</span>' +
         '<span class="a-row-days">' + txt + '</span></button>';

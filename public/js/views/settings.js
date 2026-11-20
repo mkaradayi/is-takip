@@ -1,7 +1,6 @@
 /* Ayarlar: sorumlu ve proje yönetimi (görünüm + eylemler) */
 import { ICON, PROJECT_COLORS } from "../core/config.js";
 import { allTasks, projectTaskCount, unitTaskCount } from "../core/domain.js";
-import { topOverlayClose } from "../core/overlays.js";
 import { UNIT_MAP, getProject, normalizeProject, normalizeUnit, notesOfProject, setUnits, state } from "../core/state.js";
 import { commit } from "../core/storage.js";
 import { showConfirm, showInfo, toast } from "../core/ui.js";
@@ -77,21 +76,28 @@ export function moveUnit(id, dir){
 }
 export function deleteUnit(id){
   var u = UNIT_MAP[id]; if(!u) return;
-  if(state.units.length <= 1){ showInfo("Silinemedi", "En az bir sorumlu kalmalı."); return; }
-  var n = unitTaskCount(id);
+  if(state.units.length <= 1){ showInfo("Silinemedi", "En az bir sorumlu ekip kalmalı."); return; }
+  var n = unitTaskCount(id), nm = u.members.length;
+  /* İşlerde bu ekip hedef ekiple değiştirilir; ekibin çalışanları hedef ekibe taşınır (işlerdeki çalışan atamaları korunur) */
   var remove = function(target){
-    if(n) allTasks().forEach(function(t){ if(t.unit === id) t.unit = target; });
+    var tu = UNIT_MAP[target];
+    if(n) allTasks().forEach(function(t){
+      var i = t.units.indexOf(id); if(i === -1) return;
+      t.units.splice(i, 1); if(t.units.indexOf(target) === -1) t.units.splice(i, 0, target);
+    });
+    if(nm && tu) tu.members = tu.members.concat(u.members);
     setUnits(state.units.filter(function(x){ return x.id !== id; }));
     if(state.filterUnit === id) state.filterUnit = "all";
-    commit(n ? ["tasks", "archive", "units"] : ["units"], '"' + u.name + '" silindi' + (n ? ", " + n + " iş aktarıldı" : ""));
+    commit(n ? ["tasks", "archive", "units"] : ["units"], '"' + u.name + '" silindi' + (n ? ", " + n + " iş aktarıldı" : "") + (nm ? ", " + nm + " çalışan taşındı" : ""));
   };
-  if(!n) return showConfirm({ title: "Sorumluyu sil", message: '"' + u.name + '" silinecek.', confirmLabel: "Sil", danger: true, onConfirm: remove });
+  if(!n && !nm) return showConfirm({ title: "Ekibi sil", message: '"' + u.name + '" silinecek.', confirmLabel: "Sil", danger: true, onConfirm: remove });
   var others = state.units.filter(function(x){ return x.id !== id; });
+  var parts = []; if(n) parts.push(n + " iş (aktif + arşiv)"); if(nm) parts.push(nm + " çalışan");
   showConfirm({
-    title: "Sorumluyu sil",
-    message: '"' + u.name + '" sorumlusuna bağlı ' + n + ' iş var (aktif + arşiv). Silmeden önce bu işler seçtiğiniz sorumluya aktarılacak.',
+    title: "Ekibi sil",
+    message: '"' + u.name + '" ekibine bağlı ' + parts.join(" ve ") + ' var. Silmeden önce bunlar seçtiğiniz ekibe aktarılacak.',
     confirmLabel: "Aktar ve sil", danger: true,
-    select: { label: "İşlerin aktarılacağı sorumlu", options: others, value: others[0].id },
+    select: { label: "Aktarılacak ekip", options: others, value: others[0].id },
     onConfirm: remove
   });
 }
@@ -185,9 +191,4 @@ export function bindSettings(){
     if(pop) pop.classList.toggle("open");
   });
 
-  document.onkeydown = function(e){
-    if(e.key !== "Escape") return;
-    if(document.querySelector(".color-pop.open")) return closeColorPops();
-    topOverlayClose();
-  };
 }

@@ -23,6 +23,14 @@ const PROJECTS = [
   { id: "demo-p-mdm",  name: "Ana Veri Yönetimi (MDM)",    color: "#B0812F" }
 ];
 
+/* Demo çalışanlar (ekip sırası → adlar); id'leri "demo-m" ile başlar, --sil ile kaldırılır */
+const MEMBERS = [[0, ["Selin Aydın"]], [1, ["Ayşe Demir", "Can Yılmaz"]], [2, ["Elif Şahin", "Burak Öz", "Zeynep Ak"]], [3, ["Deniz Kaya", "İpek Aras"]]];
+const DEFAULT_UNITS = [
+  { id: "oz", name: "Kendi İşlerim", color: "#7C4DFF", order: 0 }, { id: "mimari", name: "Veri Mimarisi", color: "#0E7C86", order: 1 },
+  { id: "yonetim", name: "Veri Yönetimi", color: "#3E5C76", order: 2 }, { id: "hazirlama", name: "Veri Hazırlama ve İş Zekası", color: "#B0812F", order: 3 },
+  { id: "diger", name: "Diğer", color: "#6B7280", order: 4 }
+];
+
 /* [başlık, birim sırası, öncelik, durum, proje, başlangıç, bitiş (gün farkı; null = yok), açıklama, notlar] */
 const TASKS = [
   ["Kaynak sistem envanterinin çıkarılması", 1, "yuksek", "devam", "demo-p-dwh", -20, -5, "Tüm operasyonel kaynak sistemler, sahipleri ve veri hacimleri listelenecek.", ["CRM ve ERP tamamlandı, çağrı merkezi sistemi bekleniyor."]],
@@ -90,15 +98,25 @@ async function put(kind, items, base){
 
   const keep = k => (state[k] || []).filter(x => !isDemo(x));
   let tasks = keep("tasks"), projects = keep("projects"), archive = keep("archive");
+  /* Ekipler: demo çalışanları çıkar (--sil) ya da ekle; sunucuda ekip yoksa varsayılanlar yazılır */
+  let units = (state.units && state.units.length ? state.units : DEFAULT_UNITS).map(u => Object.assign({}, u, { members: (u.members || []).filter(m => !isDemo(m)) }));
 
   if(!REMOVE){
-    const units = (state.units && state.units.length ? state.units : [{ id: "oz" }, { id: "mimari" }, { id: "yonetim" }, { id: "hazirlama" }, { id: "diger" }]).map(u => u.id);
-    const unit = i => units[i % units.length];
+    MEMBERS.forEach(([ui, names]) => { const u = units[ui % units.length]; names.forEach((n, k) => u.members.push({ id: "demo-m" + ui + k, name: n, active: true })); });
+    const unit = i => units[i % units.length].id;
+    /* her 3. işe ekibinden bir çalışan, her 5. işe ikinci bir ekip atanır (çoklu sorumlu örneği) */
+    const assign = (u, i) => {
+      const us = [unit(u)], ms = [];
+      const own = units[u % units.length].members.filter(m => isDemo(m));
+      if(own.length && i % 3 === 0) ms.push(own[i % own.length].id);
+      if(i % 5 === 4){ const other = units[(u + 1) % units.length]; us.push(other.id); const om = other.members.filter(m => isDemo(m)); if(om.length) ms.push(om[0].id); }
+      return { units: us, members: ms };
+    };
     const created = new Date().toISOString();
     const mk = (row, i, pre) => {
       const [title, u, priority, status, projectId, s, d, desc, notes] = row;
       return {
-        id: pre + pad(i + 1), title, unit: unit(u), priority, status, projectId,
+        id: pre + pad(i + 1), title, units: assign(u, i).units, members: assign(u, i).members, priority, status, projectId,
         startDate: s == null ? "" : iso(s), dueDate: d == null ? "" : iso(d),
         createdAt: iso(s == null ? -3 : Math.min(s, -1)), updatedAt: iso(0),
         description: desc || "", notes: (notes || []).map((t, k) => ({ id: pre + "n" + pad(i + 1) + k, text: t, date: iso(-(notes.length - k)), createdAt: created })),
@@ -110,7 +128,8 @@ async function put(kind, items, base){
     archive = archive.concat(ARCHIVE.map((r, i) => Object.assign(mk(r, i, "demo-a"), { archivedAt: iso(r[6] + 2) })));
   }
 
-  /* Önce projeler (işler onlara başvurur), sonra arşiv ve işler */
+  /* Önce ekipler ve projeler (işler onlara başvurur), sonra arşiv ve işler */
+  await put("units", units, state.meta.units);
   await put("projects", projects, state.meta.projects);
   await put("archive", archive, state.meta.archive);
   await put("tasks", tasks, state.meta.tasks);
