@@ -91,6 +91,11 @@
   .st-name{ flex:1; min-width:0; border:1px solid transparent; background:transparent; font-size:13px; font-weight:600; padding:5px 7px; border-radius:6px; color:var(--text); }
   .st-name:hover{ border-color:var(--border); }
   .st-name:focus{ border-color:var(--accent); background:var(--surface); outline:none; }
+  /* mail adresi (boş bırakılabilir; boşken yalnızca yer tutucu görünür) */
+  .st-email{ flex:0 1 230px; min-width:0; border:1px solid transparent; background:transparent; font-size:12.5px; padding:5px 7px; border-radius:6px; color:var(--text-soft); }
+  .st-email::placeholder{ color:var(--text-faint); font-style:italic; }
+  .st-email:hover{ border-color:var(--border); }
+  .st-email:focus{ border-color:var(--accent); background:var(--surface); color:var(--text); outline:none; }
   .st-meta{ display:flex; gap:5px; flex-shrink:0; }
   .st-caret{ width:24px; height:24px; flex-shrink:0; border:none; background:none; border-radius:6px; color:var(--text-faint); display:flex; align-items:center; justify-content:center; padding:0; }
   .st-caret:hover{ background:var(--neutral-soft); color:var(--text); }
@@ -116,5 +121,10 @@
     .st-meta .st-pill:not(:first-child){ display:none; }
     .st-move{ max-width:110px; }
     .st-members{ padding-left:14px; }
+    /* dar ekranda mail alanı satırın altına iner */
+    .st-unit > .st-row, .st-member{ flex-wrap:wrap; }
+    .st-email{ order:10; flex:1 1 100%; }
+    .st-unit > .st-row .st-email{ margin-left:58px; flex-basis:calc(100% - 58px); }
+    .st-member .st-email{ margin-left:30px; flex-basis:calc(100% - 30px); }
     .st-toolbar .settings-add{ margin-left:0; flex-basis:100%; }
   }

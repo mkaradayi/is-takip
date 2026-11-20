@@ -623,3 +623,39 @@ Tüm testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome + C
 7. **Takvim:** ay ve hafta geçişleri; 3 haftaya yayılan işin çubuğu doğru bölünmeli; filtre takvime yansımalı; çift tıklamayla açılan modalda tarih dolu gelmeli; dar ekran görüntüsü alınacak.
 
 `server.js`/`lib/` değiştiği için her sunucu değişikliğinden sonra kullanıcıya `servis\servis-kur.bat` ile sunucuyu yeniden başlatması hatırlatılacak.
+
+---
+
+# İş Takip — Ekip/Çalışan Mail Adresleri Planı
+
+## Context
+Mail taslağı (`.eml`) `To:` alanı boş oluşturuluyordu; alıcılar Outlook'ta elle ekleniyordu. İstek: ekip ve çalışan tanımlarına **mail adresi** eklenmesi ve taslakta alıcıların otomatik dolması. Adresi tanımlı olmayan ekip/çalışan atlanır; hiç adres yoksa `To:` boş kalır.
+
+**Alınan kararlar (kullanıcı):** her işte, işin her ekibi için:
+- İşte o ekipten adresi tanımlı **çalışan varsa** → çalışan(lar) **To**, ekip adresi **CC**.
+- O ekipten çalışan yoksa (ya da çalışanların adresi yoksa) → ekip adresi **To**.
+- Ekibin adresi yoksa yalnızca çalışan(lar) To'ya gider.
+
+Birden fazla iş seçilince adresler tekrarsız birleştirilir; bir adres hem To hem CC'ye düşerse yalnızca To'da kalır. Pasif çalışan işe atanmışsa adresi dahil edilir. Alıcılar görünen adla yazılır (`Ad <adres>`, RFC 2047). Mail adresleri AI'ye gönderilmez. Ayrı tür yok; `units` kaydına alan eklenir, sunucu değişmez.
+
+## 1. Veri modeli (`core/state.js`)
+`normEmail` (ASCII, boşluk/`<>",;` yok, ≤ 254; CR/LF başlık enjeksiyonuna karşı güvenlik önlemi). `normalizeUnit`: ekip ve çalışanlara `email`. `MEMBER_MAP`'e `email`. `mailRecipients(tasks)` → `{ to, cc, missing }`.
+
+## 2. Ayarlar (`views/settings.js`, `css/settings.css`)
+Ekip ve çalışan satırlarında mail alanı; boş → silinir, geçersiz → uyarı + eski değer; arama adreste de eşleşir; dar ekranda satır sarar.
+
+## 3. Mail (`components/eml.js`, `features/mail.js`)
+`Eml.build({ to, cc })` → `To:` / `Cc:` başlıkları (katlanmış). Bilgi mesajında Kime/CC sayısı ve adresi eksik olanlar.
+
+## 4. Demo veri ve belgeler
+`tools/demo-veri.js` örnek `@example.com` adresleri (bazıları boş); README, CLAUDE.md.
+
+## Checklist
+- [x] 0. Plan PLAN.md'ye eklendi
+- [x] 1. Veri modeli: `email` alanı, `normEmail`, `mailRecipients`
+- [x] 2. Ayarlar: ekip ve çalışan mail alanları (doğrulama, arama, dar ekran)
+- [x] 3. Mail taslağı: `To:` / `Cc:` alıcıları, bilgi mesajı
+- [x] 4. Demo veri, README, CLAUDE.md; test + ekran görüntüleri
+
+## Doğrulama
+`DATA_DIR=<scratchpad>/testdata PORT=3917`, headless Chrome + CDP. Ayarlar: adres gir/boşalt/geçersiz (`abc`, `a@b`, CR/LF içeren) → `/api/state`. Mail: çalışanlı iş (çalışan To, ekip CC), yalnız ekipli iş (ekip To), adressiz çalışan (ekip To), adressiz ekip (çalışan To), adres yok (`To:` boş), iki ekipli karışık iş, çok iş seçiminde tekrarsız birleşim; indirilen `.eml` başlıkları ayrıştırılarak doğrulanır. Eski veri (email yok) sorunsuz açılmalı; AI pano özetinde email olmamalı.

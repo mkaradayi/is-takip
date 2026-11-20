@@ -33,10 +33,45 @@ export function setUnits(list){
   UNIT_MAP = {}; MEMBER_MAP = {};
   state.units.forEach(function(u){
     UNIT_MAP[u.id] = u;
-    u.members.forEach(function(m){ if(!MEMBER_MAP[m.id]) MEMBER_MAP[m.id] = { id: m.id, name: m.name, active: m.active, unitId: u.id }; });
+    u.members.forEach(function(m){ if(!MEMBER_MAP[m.id]) MEMBER_MAP[m.id] = { id: m.id, name: m.name, email: m.email || "", active: m.active, unitId: u.id }; });
   });
 }
-export function getMember(id){ return MEMBER_MAP[id] || { id: id, name: "(silinmiş çalışan)", active: false, unitId: "", missing: true }; }
+export function getMember(id){ return MEMBER_MAP[id] || { id: id, name: "(silinmiş çalışan)", email: "", active: false, unitId: "", missing: true }; }
+
+/* Mail adresi: yalnızca ASCII, boşluk/CR/LF ve <>",; yok, x@y.z biçimi, ≤ 254 karakter.
+   .eml başlığına (To/Cc) yazıldığı için bu doğrulama başlık enjeksiyonuna karşı bir güvenlik önlemidir. */
+export var EMAIL_RE = /^[!#-'*+\-.\/0-9=?A-Z^-~]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+export function normEmail(v){
+  v = typeof v === "string" ? v.trim() : "";
+  return v.length <= 254 && EMAIL_RE.test(v) ? v : "";
+}
+/* Mail taslağı alıcıları. İşin her ekibi için: o ekipten adresi olan çalışan varsa çalışanlar To, ekip Cc;
+   yoksa ekip To. Adresler tekrarsız; hem To hem Cc'ye düşen adres yalnızca To'da kalır.
+   missing: işlere atanmış ama adresi tanımlı olmayan ekip/çalışan adları. */
+export function mailRecipients(tasks){
+  var to = [], cc = [], missing = [], seenMissing = {};
+  var add = function(list, name, email){ list.push({ name: name, email: email }); };
+  var miss = function(key, name){ if(!seenMissing[key]){ seenMissing[key] = true; missing.push(name); } };
+  tasks.forEach(function(t){
+    t.units.forEach(function(uid){
+      var u = getUnit(uid);
+      var mems = t.members.map(getMember).filter(function(m){ return m.unitId === uid; });
+      var withMail = mems.filter(function(m){ return m.email; });
+      mems.forEach(function(m){ if(!m.email) miss("m:" + m.id, m.name); });
+      if(!u.email && !u.missing) miss("u:" + uid, u.name);
+      withMail.forEach(function(m){ add(to, m.name, m.email); });
+      if(u.email) add(withMail.length ? cc : to, u.name, u.email);
+    });
+    /* ekibi işte olmayan çalışan (normalde fixAssignees bunu önler) */
+    t.members.map(getMember).filter(function(m){ return t.units.indexOf(m.unitId) === -1; }).forEach(function(m){
+      if(m.email) add(to, m.name, m.email); else if(!m.missing) miss("m:" + m.id, m.name);
+    });
+  });
+  var seen = {};
+  var uniq = function(list){ return list.filter(function(r){ var k = r.email.toLowerCase(); if(seen[k]) return false; seen[k] = true; return true; }); };
+  to = uniq(to); cc = uniq(cc);
+  return { to: to, cc: cc, missing: missing };
+}
 /* İşin sorumluları okunur biçimde: "Veri Yönetimi (Ali Kaya, Ayşe Demir), Veri Mimarisi" */
 export function assigneeText(t){
   return t.units.map(function(uid){
@@ -63,8 +98,9 @@ export function normalizeUnit(u, i){
   u = u || {};
   return { id: safeId(u.id) || uid(), name: str(u.name).trim() || "Adsız sorumlu",
     color: HEX_COLOR.test(u.color) ? u.color : "#6B7280", order: typeof u.order === "number" ? u.order : i,
+    email: normEmail(u.email),
     members: (Array.isArray(u.members) ? u.members : []).filter(function(m){ return m && typeof m === "object"; }).slice(0, 500).map(function(m){
-      return { id: safeId(m.id) || uid(), name: str(m.name).trim().slice(0, 80) || "Adsız çalışan", active: m.active !== false };
+      return { id: safeId(m.id) || uid(), name: str(m.name).trim().slice(0, 80) || "Adsız çalışan", email: normEmail(m.email), active: m.active !== false };
     }) };
 }
 

@@ -102,7 +102,11 @@ async function put(kind, items, base){
   let units = (state.units && state.units.length ? state.units : DEFAULT_UNITS).map(u => Object.assign({}, u, { members: (u.members || []).filter(m => !isDemo(m)) }));
 
   if(!REMOVE){
-    MEMBERS.forEach(([ui, names]) => { const u = units[ui % units.length]; names.forEach((n, k) => u.members.push({ id: "demo-m" + ui + k, name: n, active: true })); });
+    /* Demo mail adresleri (@example.com). Her ekibin son çalışanı (birden fazlaysa) adressiz: eksik adres örneği.
+       Ekip adresleri yalnızca sunucuda ekip yokken (varsayılan ekipler yazılırken) eklenir; kullanıcının ekiplerine dokunulmaz. */
+    const slug = n => n.toLocaleLowerCase("tr").replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c").replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "");
+    if(!(state.units && state.units.length)) units.forEach(u => { if(u.id !== "oz" && u.id !== "diger") u.email = slug(u.name) + "@example.com"; });
+    MEMBERS.forEach(([ui, names]) => { const u = units[ui % units.length]; names.forEach((n, k) => u.members.push({ id: "demo-m" + ui + k, name: n, email: names.length > 1 && k === names.length - 1 ? "" : slug(n) + "@example.com", active: true })); });
     const unit = i => units[i % units.length].id;
     /* her 3. işe ekibinden bir çalışan, her 5. işe ikinci bir ekip atanır (çoklu sorumlu örneği) */
     const assign = (u, i) => {

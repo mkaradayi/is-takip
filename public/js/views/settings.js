@@ -1,7 +1,7 @@
 /* Ayarlar: ekipler ve çalışanlar, projeler (görünüm + eylemler) */
 import { ICON, PROJECT_COLORS } from "../core/config.js";
 import { allTasks, memberTaskCount, projectTaskCount, searchKey, unitTaskCount } from "../core/domain.js";
-import { UNIT_MAP, getProject, normalizeProject, normalizeUnit, notesOfProject, setUnits, state } from "../core/state.js";
+import { UNIT_MAP, getProject, normEmail, normalizeProject, normalizeUnit, notesOfProject, setUnits, state } from "../core/state.js";
 import { commit } from "../core/storage.js";
 import { showConfirm, showInfo, toast } from "../core/ui.js";
 import { $, esc, initials, uid } from "../core/utils.js";
@@ -23,11 +23,17 @@ export function closeColorPops(except){
 var ui = { unitQ: "", openUnits: {}, projQ: "", projStatus: "all", projSort: "name" };
 function pill(text, cls){ return '<span class="st-pill' + (cls ? " " + cls : "") + '">' + text + '</span>'; }
 
+/* Mail adresi alanı (boş bırakılabilir). Değer normEmail'den geçmiş olsa da esc() ile basılır. */
+function emailInput(attr, id, value, label){
+  return '<input type="email" class="st-email" ' + attr + '="' + id + '" value="' + esc(value || "") + '" maxlength="254" placeholder="Mail adresi" ' +
+    'autocomplete="off" spellcheck="false" aria-label="' + label + '" title="' + label + ' (boş bırakılabilir)" />';
+}
 function memberRow(u, m){
   var n = memberTaskCount(m.id);
   return '<div class="st-member' + (m.active ? "" : " inactive") + '">' +
     '<span class="ms-avatar" style="background:' + u.color + ';">' + esc(initials(m.name)) + '</span>' +
     '<input type="text" class="st-name" value="' + esc(m.name) + '" data-mrename="' + m.id + '" maxlength="80" aria-label="Çalışan adı" />' +
+    emailInput("data-memail", m.id, m.email, "Çalışanın mail adresi") +
     '<span class="st-meta">' + pill(n + " iş") + '</span>' +
     '<select class="st-select st-move" data-mmove="' + m.id + '" title="Ekibini değiştir" aria-label="Ekibini değiştir">' +
       state.units.map(function(x){ return '<option value="' + x.id + '"' + (x.id === u.id ? " selected" : "") + '>' + esc(x.name) + '</option>'; }).join("") + '</select>' +
@@ -41,8 +47,8 @@ export function renderUnitManage(){
   state.units.forEach(function(u){ memberTotal += u.members.length; passive += u.members.filter(function(m){ return !m.active; }).length; });
   $("unitStats").innerHTML = pill(state.units.length + " ekip") + pill(memberTotal + " çalışan") + (passive ? pill(passive + " pasif", "muted") : "");
   state.units.forEach(function(u, i){
-    var unitHit = !q || searchKey(u.name).indexOf(q) !== -1;
-    var hits = q ? u.members.filter(function(m){ return searchKey(m.name).indexOf(q) !== -1; }) : u.members;
+    var unitHit = !q || searchKey(u.name).indexOf(q) !== -1 || searchKey(u.email).indexOf(q) !== -1;
+    var hits = q ? u.members.filter(function(m){ return searchKey(m.name).indexOf(q) !== -1 || searchKey(m.email).indexOf(q) !== -1; }) : u.members;
     if(q && !unitHit && !hits.length) return;
     shown++;
     var open = !!ui.openUnits[u.id] || (q && !unitHit && hits.length > 0);
@@ -52,6 +58,7 @@ export function renderUnitManage(){
         '<button type="button" class="st-caret" data-uopen="' + u.id + '" aria-expanded="' + open + '" title="' + (open ? "Çalışanları gizle" : "Çalışanları göster") + '">' + ICON.chevron + '</button>' +
         swatches("data-uswatch", u.id, u.color) +
         '<input type="text" class="st-name st-unit-name" value="' + esc(u.name) + '" data-urename="' + u.id + '" maxlength="80" aria-label="Ekip adı" />' +
+        emailInput("data-uemail", u.id, u.email, "Ekibin mail adresi") +
         '<span class="st-meta">' + pill(u.members.length + " çalışan") + pill(unitTaskCount(u.id) + " iş") + '</span>' +
         '<div class="project-manage-actions">' +
           '<button type="button" data-umove="' + u.id + '" data-dir="-1" title="Yukarı taşı"' + (i === 0 || q ? " disabled" : "") + '>' + ICON.up + '</button>' +
@@ -110,7 +117,7 @@ export function addMember(unitId){
   if(u.members.some(function(m){ return m.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"); })){
     toast('"' + u.name + '" ekibinde "' + name + '" adlı bir çalışan zaten var', true); inp.focus(); return;
   }
-  u.members.push({ id: uid(), name: name.slice(0, 80), active: true });
+  u.members.push({ id: uid(), name: name.slice(0, 80), email: "", active: true });
   setUnits(state.units);
   ui.openUnits[unitId] = true;
   commit(["units"], '"' + name + '" ' + u.name + ' ekibine eklendi');
@@ -121,6 +128,20 @@ export function renameMember(id, name){
   if(!r || !name || name === r.member.name){ renderUnitManage(); return; }
   r.member.name = name.slice(0, 80); setUnits(state.units);
   commit(["units"], "Çalışan adı güncellendi");
+}
+/* Mail adresi: boş → silinir; geçersiz → uyarı ve eski değer geri gelir; değişmediyse kayıt yok */
+function applyEmail(obj, value, what){
+  var raw = String(value || "").trim(), email = normEmail(raw);
+  if(raw && !email){ toast('"' + raw + '" geçerli bir mail adresi değil (örnek: ad.soyad@firma.com)', true); renderUnitManage(); return; }
+  if(email === (obj.email || "")){ renderUnitManage(); return; }
+  obj.email = email; setUnits(state.units);
+  commit(["units"], what + (email ? " mail adresi güncellendi" : " mail adresi kaldırıldı"));
+}
+export function setMemberEmail(id, value){
+  var r = memberById(id); if(r) applyEmail(r.member, value, '"' + r.member.name + '"');
+}
+export function setUnitEmail(id, value){
+  var u = UNIT_MAP[id]; if(u) applyEmail(u, value, '"' + u.name + '" ekibinin');
 }
 export function toggleMember(id){
   var r = memberById(id); if(!r) return;
@@ -290,13 +311,16 @@ export function bindSettings(){
   var ul = $("unitManageList");
   ul.onchange = function(e){
     var i = e.target.closest("[data-urename]"), mr = e.target.closest("[data-mrename]"), mv = e.target.closest("[data-mmove]");
-    if(i) renameUnit(i.getAttribute("data-urename"), i.value);
+    var ue = e.target.closest("[data-uemail]"), me = e.target.closest("[data-memail]");
+    if(ue) setUnitEmail(ue.getAttribute("data-uemail"), ue.value);
+    else if(me) setMemberEmail(me.getAttribute("data-memail"), me.value);
+    else if(i) renameUnit(i.getAttribute("data-urename"), i.value);
     else if(mr) renameMember(mr.getAttribute("data-mrename"), mr.value);
     else if(mv) moveMember(mv.getAttribute("data-mmove"), mv.value);
   };
   ul.onkeydown = function(e){
     if(e.key !== "Enter") return;
-    if(e.target.matches("[data-urename],[data-mrename]")) e.target.blur();
+    if(e.target.matches("[data-urename],[data-mrename],[data-uemail],[data-memail]")) e.target.blur();
     else if(e.target.matches("[data-newmember]")){ e.preventDefault(); addMember(e.target.getAttribute("data-newmember")); }
   };
   ul.onclick = function(e){

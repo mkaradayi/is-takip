@@ -42,6 +42,7 @@ Uygulama, oturum açılınca arka planda (penceresiz) başlayacak şekilde kurul
   - **Proje:** aranabilir liste; "Projesiz" ilk seçenektir. Kaydedilmemiş değişiklik varken pencereyi kapatmaya çalışırsanız onay istenir; metin seçerken fare dışarı kaysa bile pencere kapanmaz.
 - **Tarihler** her yerde `gg.aa.yyyy` (ör. 04.11.2026) biçimindedir. Elle yazılabilir ya da takvim simgesinden seçilebilir.
 - **Mail taslağı:** Kartın sağ üstündeki kutuyla (ya da Ctrl+tık ile) bir veya birden fazla iş seçin (sekme başındaki "Tümünü seç" de var), alttaki çubukta "Mail taslağı oluştur"a basın. İş penceresindeki "Mail taslağı" butonu tek iş için aynısını yapar. İnen `.eml` dosyasını Outlook düzenlenebilir bir taslak olarak açar; açıklama, **tüm durum notları**, resimler ve ekler içindedir.
+  - **Alıcılar otomatik dolar** (Ayarlar'da tanımlı mail adreslerinden). İşin her ekibi için: işte o ekipten adresi olan çalışan varsa çalışan **Kime**'ye, ekip **Bilgi (CC)**'ye yazılır; çalışan yoksa (ya da adresi yoksa) ekip **Kime**'ye yazılır. Birden fazla iş seçilince adresler tekrarsız birleştirilir. Adresi tanımlı olmayan ekip ve çalışanlar atlanır ve indirme sonrası pencerede listelenir; hiç adres yoksa alıcılar boş kalır. Göndermeden önce alıcıları kontrol edin.
   - `.eml` dosyaları Windows'ta Outlook yerine başka bir programla açılıyorsa: dosyaya sağ tıklayın → Birlikte aç → Outlook → "Her zaman bu uygulamayı kullan".
 
 ### Takvim
@@ -68,7 +69,7 @@ Tarihsiz kişisel notlar; isteğe bağlı iş bağlantısı. En son güncellenen
 ### Arşiv ve Ayarlar
 - **Arşiv:** arşivlenmiş işler; geri alma, kalıcı silme, arama (başlık, açıklama, notlar). Arşivdeki işler otomatik silinmez.
 - **Ayarlar:**
-  - **Ekipler ve çalışanlar:** ekip ekleme, yeniden adlandırma, renk, sıra, silme (işler ve çalışanlar seçtiğiniz ekibe aktarılır). Ekip satırı açılınca çalışanlar: ekleme (Enter), yeniden adlandırma, **ekibini değiştirme** (atandığı işlere yeni ekip de eklenir), **aktif/pasif** (pasif çalışan yeni işlerde listelenmez ama mevcut işlerinde kalır) ve silme (işleri başka bir çalışana aktarılabilir ya da yalnızca işlerden kaldırılabilir). Ekip ya da çalışan adıyla arama yapılabilir.
+  - **Ekipler ve çalışanlar:** ekip ekleme, yeniden adlandırma, renk, sıra, silme (işler ve çalışanlar seçtiğiniz ekibe aktarılır). Ekip satırı açılınca çalışanlar: ekleme (Enter), yeniden adlandırma, **ekibini değiştirme** (atandığı işlere yeni ekip de eklenir), **aktif/pasif** (pasif çalışan yeni işlerde listelenmez ama mevcut işlerinde kalır) ve silme (işleri başka bir çalışana aktarılabilir ya da yalnızca işlerden kaldırılabilir). **Mail adresi:** ekip ve çalışan satırlarındaki alana yazıp Enter'a basın (ya da alandan çıkın); boşaltınca silinir, geçersiz adres kabul edilmez. Adresler mail taslağının alıcılarını belirler ve AI asistanına gönderilmez. Ekip, çalışan adı ya da mail adresiyle arama yapılabilir.
   - **Projeler:** ekleme, yeniden adlandırma, renk, arşivleme, silme; arama, Tümü / Aktif / Arşivde süzgeci, ada / iş sayısına / not sayısına göre sıralama, proje sayfasını açma.
   - **AI modelleri** (aşağıda).
 
@@ -114,7 +115,7 @@ Kayıtlı modeller ve anahtarları `data/ai-models.json` dosyasında **düz meti
 ## Demo veri
 Denemek için örnek işler ekleyebilirsiniz (sunucu açıkken):
 ```
-node tools/demo-veri.js          # 28 iş, 4 proje, 3 arşiv kaydı ve ekiplere 8 demo çalışan ekler; tarihler bugüne göre (gecikmiş/bugün/yaklaşan karışık)
+node tools/demo-veri.js          # 28 iş, 4 proje, 3 arşiv kaydı ve ekiplere 8 demo çalışan (örnek @example.com mail adresleriyle) ekler; tarihler bugüne göre (gecikmiş/bugün/yaklaşan karışık)
 node tools/demo-veri.js --sil    # yalnızca demo kayıtlarını kaldırır
 ```
 Mevcut verinize dokunulmaz; önce `data/backup/demo-oncesi-<zaman>.db` yedeği alınır. Demo kayıtlarının kimlikleri `demo-` ile başlar.

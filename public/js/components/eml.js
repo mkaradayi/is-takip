@@ -1,6 +1,6 @@
 /* İş Takip — .eml (MIME) taslak oluşturucu.
    Outlook, "X-Unsent: 1" başlıklı .eml dosyasını gönderilmemiş, düzenlenebilir bir taslak olarak açar.
-   Eml.build({ subject, html, text, inline:[{ cid, name, type, bytes }], attachments:[{ name, type, bytes }] }) → string
+   Eml.build({ subject, html, text, to:[{ name, email }], cc:[{ name, email }], inline:[{ cid, name, type, bytes }], attachments:[{ name, type, bytes }] }) → string
    Yapı: multipart/mixed → [ multipart/alternative → [ text/plain, multipart/related → [ text/html, resimler ] ], ekler ] */
 export const Eml = (function(){
 var CRLF = "\r\n";
@@ -59,6 +59,17 @@ function rfcDate(d){
     p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + " " + sign + p(Math.floor(off / 60)) + p(off % 60);
 }
 
+/* Alıcı listesi: "Ad" <adres> öğeleri, her biri ayrı satıra katlanır (satır uzunluğu sınırı).
+   Adres burada son kez denetlenir: boşluk/CR/LF, <>",; içeren adres başlığa yazılmaz (başlık enjeksiyonu). */
+var ADDR_RE = /^[^\s<>",;:@()\[\]\\]+@[^\s<>",;:@()\[\]\\]+$/;
+function addrList(list){
+  return (list || []).filter(function(r){ return r && ADDR_RE.test(r.email || ""); }).map(function(r){
+    var name = String(r.name || "").replace(/[\r\n]+/g, " ").trim();
+    if(!name) return r.email;
+    var disp = /^[\x20-\x7e]*$/.test(name) ? '"' + name.replace(/["\\]/g, "\\$&") + '"' : encWord(name);
+    return disp + " <" + r.email + ">";
+  }).join("," + CRLF + " ");
+}
 function build(o){
   var inline = o.inline || [], atts = o.attachments || [];
   var htmlPart = textPart("text/html", o.html || "");
@@ -69,16 +80,18 @@ function build(o){
   var root = atts.length
     ? multipart("multipart/mixed", [asPart(alt)].concat(atts.map(function(f){ return binaryPart(f, "attachment"); })))
     : alt;
+  var cc = addrList(o.cc);
   return [
     "X-Unsent: 1",
-    "To: ",
+    "To: " + addrList(o.to)
+  ].concat(cc ? ["Cc: " + cc] : []).concat([
     "Subject: " + encWord(o.subject || ""),
     "Date: " + rfcDate(new Date()),
     "MIME-Version: 1.0",
     root.header,
     "",
     root.body
-  ].join(CRLF);
+  ]).join(CRLF);
 }
 
 return { build: build };

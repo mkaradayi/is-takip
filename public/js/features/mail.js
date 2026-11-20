@@ -2,7 +2,7 @@
 import { Eml } from "../components/eml.js";
 import { MAIL_ATT_WARN, PRIO_MAP, STATUS_MAP } from "../core/config.js";
 import { dueText, latestNotes, urgencyGroup } from "../core/domain.js";
-import { assigneeText, getProject, getUnit } from "../core/state.js";
+import { assigneeText, getProject, getUnit, mailRecipients } from "../core/state.js";
 import { showConfirm, showInfo, toast } from "../core/ui.js";
 import { download, esc, fmtDate, fmtSize, pad, todayISO } from "../core/utils.js";
 
@@ -81,6 +81,16 @@ export function mailTasks(tasks){
   }
   buildMail(tasks, true);
 }
+/* Bilgi mesajı: kimlere gideceği ve adresi tanımlı olmayanlar (Ayarlar → Ekipler ve çalışanlar) */
+function recipientInfo(rc){
+  var names = function(l){ return l.map(function(r){ return r.name; }).join(", "); };
+  var s = rc.to.length
+    ? "Kime: " + names(rc.to) + "." + (rc.cc.length ? " Bilgi (CC): " + names(rc.cc) + "." : "") + " Göndermeden önce alıcıları kontrol edin."
+    : "Tanımlı mail adresi olmadığı için alıcılar boş; Outlook'ta ekleyip gönderebilirsiniz.";
+  if(rc.missing.length) s += " Mail adresi tanımlı olmayan: " + rc.missing.slice(0, 10).join(", ") +
+    (rc.missing.length > 10 ? " ve " + (rc.missing.length - 10) + " tane daha" : "") + " (Ayarlar → Ekipler ve çalışanlar).";
+  return s;
+}
 export function buildMail(tasks, withAtt){
   toast("Mail taslağı hazırlanıyor…");
   var failed = [];
@@ -105,13 +115,14 @@ export function buildMail(tasks, withAtt){
       '<p style="margin:0 0 6px">Merhaba,</p><p style="margin:0 0 16px">' + intro + '</p>' +
       tasks.map(function(t){ return mailTaskHtml(t, withAtt); }).join("") + '</div>';
     var text = "Merhaba,\n\n" + intro + "\n\n" + tasks.map(function(t){ return mailTaskText(t, withAtt); }).join("\n\n----------------------------------------\n\n");
-    var eml = Eml.build({ subject: subject, html: html, text: text,
+    var rc = mailRecipients(tasks);
+    var eml = Eml.build({ subject: subject, html: html, text: text, to: rc.to, cc: rc.cc,
       inline: res[0].filter(Boolean), attachments: res[1].filter(Boolean) });
     var d = new Date();
     download("is-takip-mail-" + todayISO().replace(/-/g, "") + "-" + pad(d.getHours()) + pad(d.getMinutes()) + ".eml",
       new Blob([eml], { type: "message/rfc822" }));
     showInfo("Mail taslağı indirildi",
-      "İndirilen .eml dosyasını açın; Outlook taslak olarak açacak. Alıcıları ekleyip gönderebilirsiniz." +
+      "İndirilen .eml dosyasını açın; Outlook taslak olarak açacak. " + recipientInfo(rc) +
       (failed.length ? " Uyarı: şu dosyalar okunamadığı için eklenmedi: " + failed.join(", ") + "." : ""));
   }).catch(function(e){ toast("Mail taslağı oluşturulamadı: " + e.message, true); });
 }
