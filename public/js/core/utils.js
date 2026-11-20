@@ -5,6 +5,7 @@ export function pad(n){ return n < 10 ? "0" + n : "" + n; }
 export function isoOf(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
 export function todayISO(){ return isoOf(new Date()); }
 export function parseISO(s){ var p = String(s || "").slice(0, 10).split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+export function addDays(iso, n){ var d = parseISO(iso); d.setDate(d.getDate() + n); return isoOf(d); }
 export function daysBetween(a, b){ return Math.round((parseISO(b) - parseISO(a)) / 86400000); }
 /* Ekranda her tarih gg.aa.yyyy; dosyada ISO (yyyy-aa-gg) */
 export function fmtDate(iso){

@@ -13,6 +13,7 @@ import { bindProjectNoteModal } from "./modals/project-note-modal.js";
 import { bindTaskModal, openModal } from "./modals/task-modal.js";
 import { bindAlerts } from "./views/alerts.js";
 import { bindArchive, renderArchive } from "./views/archive.js";
+import { bindCalendar } from "./views/calendar.js";
 import { bindBoard, renderBoard, renderPipeline } from "./views/board.js";
 import { bindMemos } from "./views/memos.js";
 import { bindProjectAssistant } from "./views/project-assistant.js";
@@ -29,6 +30,7 @@ function bind(){
   bindMemos();
   bindSidebar();
   bindBoard();
+  bindCalendar();
   bindAlerts();
   bindArchive();
   bindSettings();
@@ -43,6 +45,7 @@ function bind(){
   $("searchInput").oninput = function(e){ state.search = e.target.value; renderPipeline(); renderBoard(); };
   $("archiveSearchInput").oninput = function(e){ state.archiveSearch = e.target.value; renderArchive(); };
   $("tabBoard").onclick = function(){ switchView("board"); };
+  $("tabCalendar").onclick = function(){ switchView("calendar"); };
   $("tabArchive").onclick = function(){ switchView("archive"); };
   $("tabSettings").onclick = function(){ switchView("settings"); };
   $("tabReminders").onclick = function(){ switchView("reminders"); };

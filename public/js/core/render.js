@@ -9,15 +9,18 @@ import { renderProjects } from "../views/projects.js";
 import { renderReminders } from "../views/reminders.js";
 import { renderSettings } from "../views/settings.js";
 import { renderSaveStatus, renderSidebar } from "../views/sidebar.js";
+import { renderCalendar } from "../views/calendar.js";
 
 export function renderAll(){
   renderSidebar(); renderPipeline(); renderAlerts(); renderBoard(); renderArchive(); renderReminders(); renderMemos(); renderProjects(); renderSaveStatus(); renderSelectBar();
+  if(state.view === "calendar") renderCalendar();
   if(state.view === "settings") renderSettings();
 }
 
 /* Görünüm → [sekme butonu, sayfa, görünürken display değeri] */
 export var VIEWS = {
   board:     ["tabBoard", "boardPage", ""],
+  calendar:  ["tabCalendar", "calendarPage", "flex"],
   projects:  ["tabProjects", "projectsPage", "flex"],
   reminders: ["tabReminders", "remindersPage", "flex"],
   memos:     ["tabMemos", "memosPage", "flex"],
@@ -33,6 +36,7 @@ export function switchView(v){
     $(VIEWS[k][1]).style.display = on ? VIEWS[k][2] : "none";
   });
   if(v === "settings") renderSettings();
+  if(v === "calendar") renderCalendar();
   if(v === "reminders") renderReminders();
   if(v === "memos") renderMemos();
   if(v === "projects") renderProjects();

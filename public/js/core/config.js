@@ -38,6 +38,7 @@ export var MAX_UPLOAD = 25 * 1024 * 1024;        // sunucudaki sınırla aynı
 export var MAIL_ATT_WARN = 20 * 1024 * 1024;     // bunun üstündeki ekler için uyarı
 export var PREF_ALERTS_OPEN = "isTakip.alertsOpen";
 export var PREF_SIDE_COLLAPSED = "isTakip.sideCollapsed";   // kenar çubuğunda katlanmış filtre bölümleri
+export var PREF_CAL_MODE = "isTakip.calMode";            // takvim: "month" | "week"
 export var PREF_STATUS_TAB = "isTakip.statusTab";   // panoda son seçilen durum sekmesi
 
 export var SV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';

@@ -1,0 +1,20 @@
+<!-- Takvim: aylık / haftalık; işler başlangıç–bitiş çubukları, hatırlatmalar -->
+<div id="calendarPage" style="display:none;">
+  <div class="archive-topbar">
+    <div class="topbar-row cal-topbar">
+      <div class="cal-nav">
+        <button type="button" class="cal-nav-btn" id="calPrev" aria-label="Önceki" title="Önceki"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button type="button" class="btn btn-sm" id="calToday">Bugün</button>
+        <button type="button" class="cal-nav-btn" id="calNext" aria-label="Sonraki" title="Sonraki"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      <h2 class="archive-heading cal-title" id="calTitle"></h2>
+      <div class="spacer"></div>
+      <span class="cal-info" id="calInfo"></span>
+      <label class="cal-check" title="Tamamlanan ve iptal edilen işleri ve tamamlanan hatırlatmaları da göster"><input type="checkbox" id="calShowDone" /> Tamamlananlar</label>
+      <div class="st-seg" id="calMode" role="group" aria-label="Görünüm">
+        <button type="button" data-mode="month">Ay</button><button type="button" data-mode="week">Hafta</button>
+      </div>
+    </div>
+  </div>
+  <div class="cal-wrap" id="calWrap"></div>
+</div>

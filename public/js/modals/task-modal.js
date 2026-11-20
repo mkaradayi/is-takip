@@ -117,7 +117,8 @@ export function uploadImage(file){
   }).then(function(src){ state.uploading--; return src; });
 }
 
-export function openModal(id){
+/* preset (yalnızca yeni işte): { startDate, dueDate } — ör. takvimde boş güne çift tıklama */
+export function openModal(id, preset){
   var t = id ? findTask(id) : null;
   state.editingId = t ? t.id : null;
   var status = t ? (state.pendingStatus || t.status) : "backlog";
@@ -126,8 +127,8 @@ export function openModal(id){
   $("modalEntryDate").textContent = t ? "Sisteme giriş: " + fmtDate(t.createdAt) : "Kaydedilince sisteme giriş tarihi otomatik atanacak";
   $("fTitle").value = t ? t.title : "";
   editor.setHtml(t ? t.descriptionHtml : "");
-  $("fStart").value = t ? isoToTR(t.startDate) : "";
-  $("fDue").value = t ? isoToTR(t.dueDate) : "";
+  $("fStart").value = isoToTR(t ? t.startDate : (preset && preset.startDate) || "");
+  $("fDue").value = isoToTR(t ? t.dueDate : (preset && preset.dueDate) || "");
   assigneeSelect.set(t ? assigneeValues(t) : ["u:" + defaultUnitId()]);
   buildSeg("fPrioSeg", PRIORITIES, t ? t.priority : "orta");
 
