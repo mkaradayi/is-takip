@@ -59,16 +59,11 @@ function rfcDate(d){
     p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + " " + sign + p(Math.floor(off / 60)) + p(off % 60);
 }
 
-/* Alıcı listesi: "Ad" <adres> öğeleri, her biri ayrı satıra katlanır (satır uzunluğu sınırı).
+/* Alıcı listesi: yalnızca adresler (görünen ad yazılmaz, kullanıcı kararı), her biri ayrı satıra katlanır (satır uzunluğu sınırı).
    Adres burada son kez denetlenir: boşluk/CR/LF, <>",; içeren adres başlığa yazılmaz (başlık enjeksiyonu). */
 var ADDR_RE = /^[^\s<>",;:@()\[\]\\]+@[^\s<>",;:@()\[\]\\]+$/;
 function addrList(list){
-  return (list || []).filter(function(r){ return r && ADDR_RE.test(r.email || ""); }).map(function(r){
-    var name = String(r.name || "").replace(/[\r\n]+/g, " ").trim();
-    if(!name) return r.email;
-    var disp = /^[\x20-\x7e]*$/.test(name) ? '"' + name.replace(/["\\]/g, "\\$&") + '"' : encWord(name);
-    return disp + " <" + r.email + ">";
-  }).join("," + CRLF + " ");
+  return (list || []).filter(function(r){ return r && ADDR_RE.test(r.email || ""); }).map(function(r){ return r.email; }).join("," + CRLF + " ");
 }
 function build(o){
   var inline = o.inline || [], atts = o.attachments || [];
