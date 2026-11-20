@@ -703,3 +703,15 @@ Ayarlar "Veri ve yedek" kartı; geri yüklemede manifest özeti ile onay, sonra 
 - [x] 1. `calistir.cmd`: sayaç, "deneme N/3" ve vazgeçme satırı, `exit /b`
 - [x] 2. `servis.ps1`: `RestartCount` kaldırıldı, kurulum mesajı
 - [x] 3. README, CLAUDE.md; test (port dolu, çökme, test göreviyle 4 kez sonlandırma)
+
+---
+
+# İş Takip — Sekme Simgesi (favicon)
+
+## Context
+Uygulamanın simgesi yoktu; tarayıcı sekmesinde boş simge görünüyordu.
+
+## Checklist
+- [x] 1. `public/favicon.svg` (koyu #10131C zeminde kanban motifi; ilk sürümdeki yeşil zemin kullanıcı isteğiyle değişti) + `index.html` `<link rel="icon">`
+- [x] 2. Test: `GET /favicon.svg` 200 `image/svg+xml`; headless Chrome'da yükleme, 16–128 px ekran görüntüsü; CLAUDE.md
+- [x] 3. Kenar çubuğunda logo: başlığın solunda 36 px (dar ekranda 28 px), aynı `favicon.svg`; 1400/600 px ekran görüntüsü
