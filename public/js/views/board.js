@@ -15,7 +15,7 @@ export function statusCounts(tasks){
   return c;
 }
 export function filterActive(){
-  return !!(state.search.trim() || state.urgencyFilter || state.filterUnit !== "all" || state.filterPrio !== "all" || state.filterProject !== "all");
+  return !!(state.search.trim() || state.urgencyFilter || state.filterUnit !== "all" || state.filterMember !== "all" || state.filterPrio !== "all" || state.filterProject !== "all");
 }
 export function setStatusTab(id){
   if(!STATUS_MAP[id]) return;

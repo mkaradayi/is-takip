@@ -606,7 +606,7 @@ Bütün testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome 
 - [x] 1. Modüller: istemci `public/js/`, partials + sunucu birleştirme, `public/css/`, sunucu `lib/`; gerileme testi öncesi ve sonrası aynı sonucu veriyor
 - [x] 2. Masonry kart düzeni, seçim kutusu sağa taşındı, dikey gezinme menüsü
 - [x] 3. Ekip/çalışan modeli, çoklu atama, göç, filtre/kart/mail/arşiv/AI uyarlaması, demo veri
-- [ ] 4. Aranabilir çoklu seçici (bileşen ve iş penceresindeki sorumlular 3. maddede yapıldı); iş penceresinde proje seçimi + kenar çubuğu (katlanır, arama, "daha fazla")
+- [x] 4. Aranabilir çoklu seçici (bileşen ve iş penceresindeki sorumlular 3. maddede yapıldı); iş penceresinde proje seçimi + kenar çubuğu (katlanır, arama, "daha fazla")
 - [ ] 5. Ayarlar: ekipler + çalışanlar, projeler (arama, filtre, sıralama)
 - [ ] 6. AI hatırlatma ve not araçları + Geri al
 - [ ] 7. Takvim (aylık + haftalık), filtreler, tıklama ve yeni iş

@@ -30,6 +30,17 @@ export function assigneeOptions(){
   });
   return out;
 }
+/* Proje seçicisi (tekli): "" = Projesiz; arşivlenmiş proje yalnızca işin mevcut projesiyse listelenir */
+export var projectSelect = null;
+export function projectOptions(){
+  var cur = projectSelect ? projectSelect.get()[0] || "" : "";
+  var out = [{ value: "", label: "Projesiz", color: "#9AA1AD" }];
+  state.projects.filter(function(p){ return p.status === "aktif" || p.id === cur; })
+    .sort(function(a, b){ return a.name.localeCompare(b.name, "tr"); })
+    .forEach(function(p){ out.push({ value: p.id, label: p.name, color: p.color, hint: p.status === "arsivlenmis" ? "arşivde" : "" }); });
+  if(cur && !out.some(function(x){ return x.value === cur; })) out.push({ value: cur, label: "(silinmiş proje)", hidden: true });
+  return out;
+}
 export function assigneeValues(t){
   return t.units.map(function(id){ return "u:" + id; }).concat(t.members.map(function(id){ return "m:" + id; }));
 }
@@ -120,13 +131,7 @@ export function openModal(id){
   assigneeSelect.set(t ? assigneeValues(t) : ["u:" + defaultUnitId()]);
   buildSeg("fPrioSeg", PRIORITIES, t ? t.priority : "orta");
 
-  var cur = t ? t.projectId : "";
-  var opts = state.projects.filter(function(p){ return p.status === "aktif" || p.id === cur; })
-    .sort(function(a, b){ return a.name.localeCompare(b.name, "tr"); });
-  $("fProject").innerHTML = '<option value="">Projesiz</option>' + opts.map(function(p){
-    return '<option value="' + p.id + '">' + esc(p.name) + (p.status === "arsivlenmis" ? " (arşiv)" : "") + '</option>';
-  }).join("");
-  $("fProject").value = cur;
+  projectSelect.set([t ? t.projectId : ""]);
 
   $("fStatus").innerHTML = STATUSES.map(function(s){ return '<option value="' + s.id + '">' + s.name + '</option>'; }).join("");
   $("fStatus").value = status;
@@ -152,12 +157,12 @@ export function openModal(id){
   state.modalBase = modalSnapshot();
   $("fTitle").focus();
 }
-export function closeModal(){ assigneeSelect.close(); $("overlay").classList.remove("show"); state.editingId = null; state.pendingStatus = null; state.modalBase = null; }
+export function closeModal(){ assigneeSelect.close(); projectSelect.close(); $("overlay").classList.remove("show"); state.editingId = null; state.pendingStatus = null; state.modalBase = null; }
 /* Formun o anki hali; açılıştaki halden farklıysa kapatmadan önce sorulur */
 export function modalSnapshot(){
   return JSON.stringify([
     $("fTitle").value, editor.getHtml(), $("fStart").value, $("fDue").value,
-    assigneeSelect.get().slice().sort().join(","), $("fPrioSeg").dataset.value, $("fProject").value, $("fStatus").value,
+    assigneeSelect.get().slice().sort().join(","), $("fPrioSeg").dataset.value, projectSelect.get()[0] || "", $("fStatus").value,
     state.modalNotes.map(function(n){ return n.id; }),
     state.modalAttachments.map(function(a){ return a.id || a.name; }),
     $("fNoteInput").value.trim()
@@ -206,7 +211,7 @@ export function saveTask(){
   var fields = {
     title: title, descriptionHtml: html, description: RichEditor.toPlain(html),
     units: asg.units, members: asg.members, priority: $("fPrioSeg").dataset.value,
-    projectId: $("fProject").value, status: status, startDate: start, dueDate: due,
+    projectId: projectSelect.get()[0] || "", status: status, startDate: start, dueDate: due,
     notes: state.modalNotes.slice(),
     attachments: state.modalAttachments.filter(function(a){ return a && !a.uploading; }),
     updatedAt: todayISO()
@@ -224,6 +229,10 @@ export function bindTaskModal(){
   assigneeSelect = MultiSelect.create($("fAssignees"), {
     multiple: true, linkParents: true, options: assigneeOptions,
     placeholder: "Ekip veya çalışan seçin…", searchPlaceholder: "Ekip ya da çalışan ara…", emptyText: "Eşleşen ekip ya da çalışan yok"
+  });
+  projectSelect = MultiSelect.create($("fProject"), {
+    multiple: false, options: projectOptions,
+    placeholder: "Projesiz", searchPlaceholder: "Proje ara…", emptyText: "Eşleşen proje yok"
   });
   editor = RichEditor.create($("fDescEditor"), {
     onImage: uploadImage,

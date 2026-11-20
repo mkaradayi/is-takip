@@ -2,7 +2,9 @@
   @media (max-width: 860px){
     .ai-panel{ position:fixed; inset:0; width:auto; height:auto; z-index:45; }
     .app{ flex-direction:column; }
-    .sidebar{ width:100%; flex-direction:row; align-items:center; flex-wrap:wrap; padding:14px 16px; gap:10px 18px; }
+    .sidebar{ width:100%; flex-direction:row; align-items:center; flex-wrap:wrap; padding:14px 16px; gap:10px 18px; position:static; height:auto; overflow:visible; }
+    .side-filter{ min-width:220px; flex:1; align-self:flex-start; }
+    .side-list{ max-height:220px; }
     .brand{ border:none; padding:0; margin:0; }
     .side-section{ margin-bottom:0; }
     .view-switch{ flex-direction:row; flex-wrap:wrap; gap:4px; margin-bottom:0; }

@@ -37,9 +37,15 @@
     </button>
   </div>
 
-  <div class="side-section">
-    <div class="side-label">Sorumlu</div>
-    <div id="unitList"></div>
+  <div class="side-section side-filter" id="unitFilter">
+    <div class="side-head">
+      <button type="button" class="side-toggle" aria-expanded="true" aria-controls="unitList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><span class="side-label">Sorumlu</span></button>
+      <span class="side-active" id="unitActive"></span>
+    </div>
+    <div class="side-body">
+      <label class="side-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="text" id="unitSearch" placeholder="Ekip ya da çalışan ara…" autocomplete="off" spellcheck="false" /></label>
+      <div class="side-list" id="unitList"></div>
+    </div>
   </div>
 
   <div class="side-section">
@@ -47,9 +53,15 @@
     <div class="prio-row" id="prioFilterRow"></div>
   </div>
 
-  <div class="side-section">
-    <div class="side-label">Proje</div>
-    <div id="projectList"></div>
+  <div class="side-section side-filter" id="projectFilter">
+    <div class="side-head">
+      <button type="button" class="side-toggle" aria-expanded="true" aria-controls="projectList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><span class="side-label">Proje</span></button>
+      <span class="side-active" id="projectActive"></span>
+    </div>
+    <div class="side-body">
+      <label class="side-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="text" id="projectSearch" placeholder="Proje ara…" autocomplete="off" spellcheck="false" /></label>
+      <div class="side-list" id="projectList"></div>
+    </div>
   </div>
 
   <div class="sidebar-footer">

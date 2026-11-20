@@ -42,7 +42,7 @@ function create(host, o){
     chips.innerHTML = sorted.map(function(v){
       var x = byValue(v) || { value: v, label: v };
       var mark = x.avatar ? '<span class="ms-avatar" style="background:' + color(x.color) + ';">' + esc(x.avatar) + '</span>' : '<span class="ms-dot" style="background:' + color(x.color) + ';"></span>';
-      return '<span class="ms-chip' + (x.parent ? " sub" : "") + '">' + mark + '<span class="ms-chip-label">' + esc(x.label) + '</span>' +
+      return '<span class="ms-chip' + (x.parent ? " sub" : "") + (o.multiple ? "" : " single") + '">' + mark + '<span class="ms-chip-label">' + esc(x.label) + '</span>' +
         (o.multiple ? '<button type="button" class="ms-x" data-ms-remove="' + esc(v) + '" title="Kaldır" aria-label="' + esc(x.label) + ' kaldır">×</button>' : "") + '</span>';
     }).join("");
   }

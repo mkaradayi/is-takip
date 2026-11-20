@@ -17,6 +17,7 @@
     background:var(--neutral-soft); font-size:12.5px; font-weight:600; color:var(--text); line-height:1.3;
   }
   .ms-chip.sub{ font-weight:500; padding-left:4px; }
+  .ms-chip.single{ background:transparent; padding:4px 2px; font-size:13.5px; font-weight:500; }   /* tekli seçimde değer düz metin gibi */
   .ms-chip-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ms-x{ border:none; background:transparent; color:var(--text-faint); font-size:15px; line-height:1; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; padding:0; }
   .ms-x:hover{ background:var(--danger-soft); color:var(--danger); }

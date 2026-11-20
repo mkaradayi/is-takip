@@ -33,7 +33,9 @@ export function relLabel(iso){
 export function uid(){ return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 /* "Ayşe Nur Kaya" → "AK" */
 export function initials(name){
-  var w = String(name || "").trim().split(/\s+/).filter(Boolean);
+  var all = String(name || "").trim().split(/\s+/).filter(Boolean);
+  var w = all.filter(function(x){ return /^\p{L}/u.test(x); });   // "Ali Kaya 2" → "AK" (sayılar atlanır)
+  if(!w.length) w = all;
   if(!w.length) return "?";
   return (w[0].charAt(0) + (w.length > 1 ? w[w.length - 1].charAt(0) : "")).toLocaleUpperCase("tr");
 }

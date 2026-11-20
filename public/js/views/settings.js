@@ -88,6 +88,7 @@ export function deleteUnit(id){
     if(nm && tu) tu.members = tu.members.concat(u.members);
     setUnits(state.units.filter(function(x){ return x.id !== id; }));
     if(state.filterUnit === id) state.filterUnit = "all";
+    if(state.filterMember !== "all" && u.members.some(function(m){ return m.id === state.filterMember; })) state.filterMember = "all";
     commit(n ? ["tasks", "archive", "units"] : ["units"], '"' + u.name + '" silindi' + (n ? ", " + n + " iş aktarıldı" : "") + (nm ? ", " + nm + " çalışan taşındı" : ""));
   };
   if(!n && !nm) return showConfirm({ title: "Ekibi sil", message: '"' + u.name + '" silinecek.', confirmLabel: "Sil", danger: true, onConfirm: remove });

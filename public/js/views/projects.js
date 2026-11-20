@@ -151,7 +151,7 @@ export function bindProjects(){
   $("btnProjBack").onclick = function(){ state.projectView = null; renderProjects(); };
   $("btnNewPn").onclick = function(){ if(state.projectView) openProjectNote(null, state.projectView); };
   var projToBoard = function(status){
-    state.filterProject = state.projectView; state.filterUnit = "all"; state.filterPrio = "all"; state.urgencyFilter = null; state.search = ""; $("searchInput").value = "";
+    state.filterProject = state.projectView; state.filterUnit = "all"; state.filterMember = "all"; state.filterPrio = "all"; state.urgencyFilter = null; state.search = ""; $("searchInput").value = "";
     if(status){ state.statusTab = status; pref(PREF_STATUS_TAB, status); }
     switchView("board"); renderAll();
   };

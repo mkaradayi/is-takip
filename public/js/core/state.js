@@ -174,6 +174,7 @@ export function applyServerState(data){
   if(state.projectView && !getProject(state.projectView)) state.projectView = null;
   if(state.filterProject !== "all" && state.filterProject !== "none" && !getProject(state.filterProject)) state.filterProject = "all";
   if(state.filterUnit !== "all" && !UNIT_MAP[state.filterUnit]) state.filterUnit = "all";
+  if(state.filterMember !== "all" && !MEMBER_MAP[state.filterMember]) state.filterMember = "all";
 }
 export function getProject(id){
   if(!id) return null;
