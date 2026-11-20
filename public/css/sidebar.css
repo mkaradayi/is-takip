@@ -49,13 +49,6 @@
   .prio-chip.active{ background:#fff; color:var(--bg-sidebar); border-color:#fff; }
 
   .sidebar-footer{ margin-top:auto; padding-top:14px; border-top:1px solid rgba(255,255,255,.08); }
-  .side-btn{
-    width:100%; display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:8px;
-    background:transparent; border:none; color:var(--text-invert-soft); font-size:13px; font-weight:500;
-    margin-bottom:2px;
-  }
-  .side-btn:hover{ background:rgba(255,255,255,.06); color:#fff; }
-  .side-btn svg{ width:15px; height:15px; opacity:.85; }
   .storage-note{ font-size:11px; color:var(--text-invert-soft); padding:8px 6px 0; line-height:1.5; }
   .filelink{ display:flex; flex-direction:column; gap:6px; padding:0 6px; }
   .filelink-status{ font-size:11.5px; color:var(--text-invert-soft); line-height:1.5; display:flex; align-items:center; gap:6px; }

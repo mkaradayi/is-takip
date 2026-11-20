@@ -26,6 +26,23 @@
   .model-pill.warn{ background:var(--warn-soft); color:#8A5C05; }
   .model-actions{ display:flex; gap:6px; flex-wrap:wrap; }
   .btn-danger-soft{ color:#9A3B1F; border-color:#F0B79E; }
+  /* Veri ve yedek: satır başına açıklama (sol) + düğme (sağ); tehlikeli işlem ayrı çizgiyle */
+  .data-list{ border:1px solid var(--border-soft); border-radius:10px; overflow:hidden; }
+  .data-row{ display:flex; align-items:center; gap:14px; padding:12px 14px; border-bottom:1px solid var(--border-soft); }
+  .data-row:last-child{ border-bottom:none; }
+  .data-text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .data-text b{ font-size:13.5px; color:var(--text); }
+  .data-text span{ font-size:12.5px; color:var(--text-soft); line-height:1.45; }
+  .data-text code{ font-family:var(--font-mono); font-size:11.5px; background:var(--neutral-soft); padding:0 4px; border-radius:4px; }
+  .data-row .btn{ flex-shrink:0; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; min-width:150px; justify-content:center; }
+  .data-row .btn svg{ width:15px; height:15px; flex-shrink:0; }
+  .data-row .btn:disabled{ opacity:.55; cursor:progress; }
+  .data-danger{ background:#FFF8F5; border-top:1px solid #F3D3C4; }
+  .data-danger .data-text b{ color:#9A3B1F; }
+  @media (max-width: 600px){
+    .data-row{ flex-direction:column; align-items:stretch; gap:8px; }
+    .data-row .btn{ align-self:flex-start; }
+  }
   .model-row-status{ font-size:11.5px; margin-top:4px; }
   .model-row-status:empty{ display:none; }
   .model-row-status.ok, .model-form-status.ok{ color:#1F7A52; }

@@ -1,72 +1,117 @@
-/* Yedek: JSON dışa / içe aktarma */
-import { getProject, normalizeMemo, normalizeProject, normalizeProjectNote, normalizeReminder, normalizeTask, setUnits, state, unitsFrom } from "../core/state.js";
-import { commit } from "../core/storage.js";
+/* Yedek: tam yedek (.zip: veritabanı + ekler) indirme ve geri yükleme; tüm aktif işleri silme (Ayarlar → Veri ve yedek) */
+import { reloadPage } from "../main.js";
+import { state } from "../core/state.js";
+import { Storage, commit } from "../core/storage.js";
 import { showConfirm, showInfo, toast } from "../core/ui.js";
-import { $, download, todayISO } from "../core/utils.js";
+import { $, download, fmtSize, pad } from "../core/utils.js";
 
-export function exportBackup(){
-  var data = JSON.stringify({ schemaVersion: 2, exportedAt: new Date().toISOString(),
-    tasks: state.tasks, projects: state.projects, archive: state.archive, units: state.units, reminders: state.reminders, memos: state.memos, projectNotes: state.projectNotes }, null, 2);
-  download("is-takip-yedek-" + todayISO().replace(/-/g, "") + ".json", new Blob([data], { type: "application/json" }));
-  toast("Yedek dosyası indirildi (ek dosyaları dahil değildir)");
+/* Kaydedilmemiş değişiklik varken yedek alınmaz/geri yüklenmez (yedek eksik olur ya da değişiklik kaybolur) */
+function unsavedBlock(){
+  if(!Storage.hasUnsaved()) return false;
+  showInfo("Bekleyen kayıt var", "Son değişiklikler henüz sunucuya kaydedilmedi. Sol alttaki kayıt durumu \"Kaydedildi\" olunca tekrar deneyin.");
+  return true;
 }
-export function importBackup(file){
-  var r = new FileReader();
-  r.onload = function(){
-    var parsed;
-    try{ parsed = JSON.parse(r.result); }catch(e){ return showInfo("Dosya okunamadı", "Geçerli bir JSON dosyası seçin."); }
-    var tasks, projects = null, archive = null, units = null, reminders = null, memos = null, pnotes = null;
-    if(Array.isArray(parsed)) tasks = parsed;                       // en eski biçim: düz iş dizisi
-    else if(parsed && Array.isArray(parsed.tasks)){ tasks = parsed.tasks; projects = parsed.projects; archive = parsed.archive; units = parsed.units; reminders = parsed.reminders; memos = parsed.memos; pnotes = parsed.projectNotes; }
-    else if(parsed && Array.isArray(parsed.items)) tasks = parsed.items; // data/tasks.json biçimi
-    else return showInfo("Dosya okunamadı", "Bu uygulamadan alınmış bir yedek dosyası olmalı.");
-    if(!tasks.every(function(t){ return t && typeof t.title === "string"; })) return showInfo("Dosya okunamadı", "İş kayıtlarında başlık bulunamadı.");
-    var hasUnits = Array.isArray(units) && units.length > 0;
-    var go = function(){
-      var kinds = ["tasks"];
-      if(hasUnits){ setUnits(unitsFrom(units)); kinds.push("units"); }
-      state.tasks = tasks.map(normalizeTask);
-      if(Array.isArray(projects)){ state.projects = projects.map(normalizeProject); kinds.push("projects"); }
-      if(Array.isArray(archive)){ state.archive = archive.map(normalizeTask); kinds.push("archive"); }
-      if(Array.isArray(reminders)){ state.reminders = reminders.map(normalizeReminder); state.remEditing = null; kinds.push("reminders"); }
-      if(Array.isArray(memos)){ state.memos = memos.map(normalizeMemo); state.memoEditing = null; kinds.push("memos"); }
-      if(Array.isArray(pnotes)){ state.projectNotes = pnotes.map(normalizeProjectNote); kinds.push("projectNotes"); }
-      if(state.projectView && !getProject(state.projectView)) state.projectView = null;
-      state.selected = {};
-      commit(kinds, tasks.length + " iş içe aktarıldı");
-    };
-    var willReplace = ["Mevcut " + state.tasks.length + " aktif iş → yedekteki " + tasks.length + " iş"];
-    if(Array.isArray(projects)) willReplace.push(state.projects.length + " proje → " + projects.length + " proje");
-    if(Array.isArray(archive)) willReplace.push(state.archive.length + " arşiv kaydı → " + archive.length + " arşiv kaydı");
-    if(hasUnits) willReplace.push(state.units.length + " sorumlu → " + units.length + " sorumlu");
-    if(Array.isArray(reminders)) willReplace.push(state.reminders.length + " hatırlatma → " + reminders.length + " hatırlatma");
-    if(Array.isArray(memos)) willReplace.push(state.memos.length + " not → " + memos.length + " not");
-    if(Array.isArray(pnotes)) willReplace.push(state.projectNotes.length + " proje notu → " + pnotes.length + " proje notu");
-    var hasData = state.tasks.length || (Array.isArray(projects) && state.projects.length) || (Array.isArray(archive) && state.archive.length) || hasUnits ||
-      (Array.isArray(reminders) && state.reminders.length) || (Array.isArray(memos) && state.memos.length) || (Array.isArray(pnotes) && state.projectNotes.length);
-    if(hasData) showConfirm({
-      title: "Yedekten geri yükle",
-      message: "Şunlar değiştirilecek: " + willReplace.join("; ") + ". Devam edilsin mi?",
-      confirmLabel: "İçe Aktar", danger: true, onConfirm: go
+
+export function downloadBackup(){
+  var btn = $("btnBackupDownload");
+  if(btn.disabled || unsavedBlock()) return;
+  btn.disabled = true;
+  toast("Yedek hazırlanıyor…");
+  fetch("/api/backup/download", { cache: "no-store" }).then(function(r){
+    if(!r.ok) return r.json().catch(function(){ return {}; }).then(function(j){ throw new Error(j.error || ("HTTP " + r.status)); });
+    var m = /filename="([\w.-]+)"/.exec(r.headers.get("content-disposition") || "");
+    return r.blob().then(function(b){
+      download(m ? m[1] : "is-takip-yedek.zip", b);
+      toast("Yedek indirildi (" + fmtSize(b.size) + "). Güvenli bir yerde saklayın.");
     });
-    else go();
-  };
-  r.readAsText(file);
+  }).catch(function(e){ toast("Yedek indirilemedi: " + e.message, true); })
+    .then(function(){ btn.disabled = false; });
+}
+
+/* Yedekteki manifest.json'u dosyayı açmadan okur: sunucu onu ZIP'e sıkıştırmadan (store) yazar.
+   EOCD → merkezi dizin → manifest girdisi → yerel başlık → veri. Okunamazsa null. */
+export function readManifest(file){
+  return file.arrayBuffer().then(function(ab){
+    var dv = new DataView(ab), n = ab.byteLength, eocd = -1;
+    for(var i = n - 22; i >= Math.max(0, n - 22 - 0xFFFF); i--){ if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; } }
+    if(eocd < 0) return null;
+    var count = dv.getUint16(eocd + 10, true), p = dv.getUint32(eocd + 16, true);
+    for(var k = 0; k < count && p + 46 <= n; k++){
+      if(dv.getUint32(p, true) !== 0x02014b50) return null;
+      var method = dv.getUint16(p + 10, true), size = dv.getUint32(p + 20, true);
+      var nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lho = dv.getUint32(p + 42, true);
+      var name = new TextDecoder().decode(new Uint8Array(ab, p + 46, nl));
+      if(name === "manifest.json"){
+        if(method !== 0 || size > 65536 || lho + 30 > n) return null;
+        var start = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+        if(start + size > n) return null;
+        var m = JSON.parse(new TextDecoder().decode(new Uint8Array(ab, start, size)));
+        return m && typeof m === "object" ? m : null;
+      }
+      p += 46 + nl + xl + cl;
+    }
+    return null;
+  }).catch(function(){ return null; });
+}
+function stampText(iso){
+  var d = new Date(iso);
+  if(isNaN(d)) return "bilinmiyor";
+  return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+function num(v){ return typeof v === "number" && v >= 0 ? v : 0; }
+
+export function pickRestore(file){
+  readManifest(file).then(function(man){
+    if(!man || man.app !== "is-takip"){
+      return showInfo("Yedek okunamadı", "Seçilen dosya bir İş Takip yedeği değil. Ayarlar → Veri ve yedek → \"Yedek indir\" ile alınmış bir .zip dosyası seçin.");
+    }
+    var c = man.counts || {};
+    showConfirm({
+      title: "Yedekten geri yükle",
+      message: "Yedek tarihi: " + stampText(man.createdAt) + ". İçerik: " + num(c.tasks) + " aktif iş, " + num(c.archive) + " arşiv kaydı, " +
+        num(c.projects) + " proje, " + num(c.projectNotes) + " proje notu, " + num(c.reminders) + " hatırlatma, " + num(c.memos) + " not, " +
+        num(c.units) + " ekip, " + num(man.attachments) + " ek dosyası (" + fmtSize(file.size) + "). " +
+        "Mevcut TÜM veri ve ek dosyaları bu yedekle değiştirilecek. Geri yüklemeden önce mevcut durum otomatik olarak data/backup/ klasörüne yedeklenir (sunucu bir sonraki açılışta yeni yedek alana kadar saklanır).",
+      confirmLabel: "Geri yükle", danger: true,
+      onConfirm: function(){ doRestore(file); }
+    });
+  });
+}
+function doRestore(file){
+  if(unsavedBlock()) return;
+  var btn = $("btnBackupRestore");
+  btn.disabled = true;
+  toast("Yedek geri yükleniyor…");
+  fetch("/api/backup/restore", { method: "POST", headers: { "Content-Type": "application/zip" }, body: file }).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; });
+  }).then(function(j){
+    showConfirm({
+      title: "Yedek geri yüklendi",
+      message: (j.counts ? j.counts.tasks : 0) + " aktif iş ve " + (j.attachments || 0) + " ek dosyası geri yüklendi. Önceki durumun yedeği: data/" + (j.preRestore || "backup/") +
+        ". Sayfa yeni veriyle yeniden yüklenecek. Başka açık sekmeler varsa onları da yenileyin.",
+      confirmLabel: "Sayfayı yenile", danger: false, hideCancel: true,
+      onConfirm: reloadPage, onCancel: reloadPage
+    });
+  }).catch(function(e){
+    btn.disabled = false;
+    showInfo("Geri yükleme yapılamadı", e.message);
+  });
+}
+
+export function clearActiveTasks(){
+  if(!state.tasks.length) return showInfo("Silinecek iş yok", "Aktif iş bulunmuyor.");
+  showConfirm({
+    title: "Tüm aktif işleri sil",
+    message: state.tasks.length + " aktif iş silinecek. Arşiv, projeler ve notlar korunur. Bu işlem geri alınamaz; önce \"Yedek indir\" ile yedek almanız önerilir.",
+    confirmLabel: "Hepsini Sil", danger: true,
+    onConfirm: function(){ state.tasks = []; state.selected = {}; commit(["tasks"], "Tüm aktif işler silindi"); }
+  });
 }
 
 /* Olay bağlama (main.js → bind) */
 export function bindBackup(){
-  /* Yedek */
-  $("btnExport").onclick = exportBackup;
-  $("btnImport").onclick = function(){ $("fileInput").click(); };
-  $("fileInput").onchange = function(e){ if(e.target.files[0]) importBackup(e.target.files[0]); e.target.value = ""; };
-  $("btnClear").onclick = function(){
-    if(!state.tasks.length) return;
-    showConfirm({
-      title: "Tüm aktif işleri sil",
-      message: state.tasks.length + " aktif iş silinecek. Arşiv ve projeler korunur. Önce yedek almanız önerilir. Bu işlem geri alınamaz.",
-      confirmLabel: "Hepsini Sil", danger: true,
-      onConfirm: function(){ state.tasks = []; commit(["tasks"], "Tüm aktif işler silindi"); }
-    });
-  };
+  $("btnBackupDownload").onclick = downloadBackup;
+  $("btnBackupRestore").onclick = function(){ $("restoreInput").click(); };
+  $("restoreInput").onchange = function(e){ var f = e.target.files[0]; e.target.value = ""; if(f) pickRestore(f); };
+  $("btnClear").onclick = clearActiveTasks;
 }

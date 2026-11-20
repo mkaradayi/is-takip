@@ -1,4 +1,4 @@
-<!-- Ayarlar: ekipler ve çalışanlar, projeler, AI modelleri -->
+<!-- Ayarlar: ekipler ve çalışanlar, projeler, AI modelleri, veri ve yedek -->
 <div id="settingsPage" style="display:none;">
   <div class="archive-topbar">
     <div class="topbar-row"><h2 class="archive-heading">Ayarlar</h2></div>
@@ -83,6 +83,31 @@
           <button type="submit" class="btn btn-sm btn-primary" id="mSave">Kaydet</button>
         </div>
       </form>
+    </section>
+
+    <section class="settings-card settings-wide" id="dataSection">
+      <div class="settings-card-head">
+        <h3>Veri ve yedek</h3>
+        <p>Veriler sunucudaki <code>data/is-takip.db</code> veritabanına otomatik yazılır. Sunucu her açılışta yalnızca veritabanının tek bir yedeğini alır. <b>Tam yedek</b> ise işleri, arşivi, projeleri, notları, hatırlatmaları, ekipleri <b>ve tüm ek dosyalarını</b> tek bir .zip dosyasında toplar. Önemli dönemlerde yedek indirip başka bir yerde (OneDrive, harici disk…) saklayın. AI model ayarları ve API anahtarları yedeğe dahil değildir.</p>
+      </div>
+      <div class="data-list">
+        <div class="data-row">
+          <div class="data-text"><b>Yedek indir (.zip)</b><span>Veritabanı ve tüm ek dosyaları; o anki tutarlı bir kopya.</span></div>
+          <button type="button" class="btn btn-primary btn-sm" id="btnBackupDownload">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Yedek indir</button>
+        </div>
+        <div class="data-row">
+          <div class="data-text"><b>Yedekten geri yükle</b><span>Mevcut tüm veri ve ek dosyaları seçtiğiniz yedekle değiştirilir. Öncesi otomatik olarak <code>data/backup/</code> klasörüne yedeklenir.</span></div>
+          <button type="button" class="btn btn-sm" id="btnBackupRestore">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="M7 14l5-5 5 5"/><path d="M5 3h14"/></svg>Yedek seç…</button>
+          <input type="file" id="restoreInput" class="file-hidden" accept=".zip,application/zip,application/x-zip-compressed" />
+        </div>
+        <div class="data-row data-danger">
+          <div class="data-text"><b>Tüm aktif işleri sil</b><span>Arşiv, projeler ve notlar korunur. Geri alınamaz; önce yedek indirin.</span></div>
+          <button type="button" class="btn btn-sm btn-danger-soft" id="btnClear">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>Tüm aktif işleri sil</button>
+        </div>
+      </div>
     </section>
   </div>
 </div>

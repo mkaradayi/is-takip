@@ -636,7 +636,7 @@ Mail taslağı (`.eml`) `To:` alanı boş oluşturuluyordu; alıcılar Outlook't
 - O ekipten çalışan yoksa (ya da çalışanların adresi yoksa) → ekip adresi **To**.
 - Ekibin adresi yoksa yalnızca çalışan(lar) To'ya gider.
 
-Birden fazla iş seçilince adresler tekrarsız birleştirilir; bir adres hem To hem CC'ye düşerse yalnızca To'da kalır. Pasif çalışan işe atanmışsa adresi dahil edilir. Alıcılar görünen adla yazılır (`Ad <adres>`, RFC 2047). Mail adresleri AI'ye gönderilmez. Ayrı tür yok; `units` kaydına alan eklenir, sunucu değişmez.
+Birden fazla iş seçilince adresler tekrarsız birleştirilir; bir adres hem To hem CC'ye düşerse yalnızca To'da kalır. Pasif çalışan işe atanmışsa adresi dahil edilir. Alıcılar başlığa yalnızca adres olarak yazılır (sonradan kullanıcı isteğiyle `Ad <adres>` biçiminden vazgeçildi). Mail adresleri AI'ye gönderilmez. Ayrı tür yok; `units` kaydına alan eklenir, sunucu değişmez.
 
 ## 1. Veri modeli (`core/state.js`)
 `normEmail` (ASCII, boşluk/`<>",;` yok, ≤ 254; CR/LF başlık enjeksiyonuna karşı güvenlik önlemi). `normalizeUnit`: ekip ve çalışanlara `email`. `MEMBER_MAP`'e `email`. `mailRecipients(tasks)` → `{ to, cc, missing }`.
@@ -659,3 +659,33 @@ Ekip ve çalışan satırlarında mail alanı; boş → silinir, geçersiz → u
 
 ## Doğrulama
 `DATA_DIR=<scratchpad>/testdata PORT=3917`, headless Chrome + CDP. Ayarlar: adres gir/boşalt/geçersiz (`abc`, `a@b`, CR/LF içeren) → `/api/state`. Mail: çalışanlı iş (çalışan To, ekip CC), yalnız ekipli iş (ekip To), adressiz çalışan (ekip To), adressiz ekip (çalışan To), adres yok (`To:` boş), iki ekipli karışık iş, çok iş seçiminde tekrarsız birleşim; indirilen `.eml` başlıkları ayrıştırılarak doğrulanır. Eski veri (email yok) sorunsuz açılmalı; AI pano özetinde email olmamalı.
+
+---
+
+# İş Takip — Tam Yedek (.zip) Planı
+
+## Context
+Kullanıcı JSON yedeğin anlamını sordu. Değerlendirme: JSON yedek **ekleri kapsamıyor** (iş/proje notu dosyaları, açıklamalardaki resimler geri yüklemede kırık kalıyor); açılış yedeği tek dosya, her yeniden başlatmada üzerine yazılıyor, ekleri kapsamıyor ve arayüzden kullanılamıyor. Kullanıcının elinde birden fazla sürüm tutabileceği **tam** yedek yok.
+
+**Alınan kararlar (kullanıcı):** Ayarlar'da yeni **"Veri ve yedek"** kartı: **Yedek indir (.zip)** (veritabanı + tüm ekler) ve **Yedekten geri yükle (.zip)** (önce mevcut durum yedeklenir). JSON **dışa ve içe aktarma kaldırılır** (eski `.json` yedekleri artık içe aktarılamaz). "Tüm aktif işleri sil" de bu karta taşınır; kenar çubuğu sadeleşir. Açılış yedeği, tek yedek kuralı ve `POST /api/backup` değişmez.
+
+## 1. ZIP + `GET /api/backup/download`
+`lib/backup-zip.js` (bağımlılıksız; `zlib.crc32`, `deflateRawSync`; ZIP64 yok): `manifest.json` (store; `{ app, format, createdAt, dbVersion, counts, attachments }`), `is-takip.db` (`VACUUM INTO` geçici kopya), `attachments/<id>`. `ai-models.json` ve `.env` dahil değil. Geçici dosyalar `data/tmp/` altında (yedek temizliği onlara dokunmaz).
+
+## 2. `POST /api/backup/restore`
+Önce tam doğrulama (yalnızca izinli girdi adları, CRC, boyut sınırı, SQLite `quick_check`, `user_version`, tablolar, JSON), sonra mevcut durumun `backup/geri-yukleme-oncesi-<zaman>.zip` yedeği, sonra `closeStorage` → yeniden adlandırarak değiştirme → `startStorage`; hata olursa eski dosyalar geri gelir.
+
+## 3. Arayüz
+Ayarlar "Veri ve yedek" kartı; geri yüklemede manifest özeti ile onay, sonra sayfa yenilenir. Kenar çubuğundan yedek düğmeleri ve "Tüm aktif işleri sil" kalkar; JSON kodu silinir.
+
+## 4. Belgeler + test
+
+## Checklist
+- [x] 0. Plan PLAN.md'ye eklendi
+- [x] 1. `lib/backup-zip.js` + `GET /api/backup/download`
+- [x] 2. `POST /api/backup/restore` (doğrulama, öncesi yedek, güvenli değiştirme, geri alma)
+- [x] 3. Ayarlar "Veri ve yedek" kartı; kenar çubuğu sadeleşmesi; JSON kaldırma
+- [x] 4. README, CLAUDE.md; tam gerileme testi + ekran görüntüleri
+
+## Doğrulama
+`DATA_DIR=<scratchpad> PORT=3917`. İndirilen ZIP PowerShell `Expand-Archive` ile açılmalı; DB içeriği `/api/state` ile, ekler bayt bayt aynı. Geri yükleme sonrası veri ve ekler birebir; öncesi yedeği var. Kötü ZIP'ler (yol kaçışı, bozuk CRC, bozuk/yeni SQLite, ZIP bombası, ZIP olmayan) reddedilmeli ve veri değişmemeli; değiştirme ortasında hata → eski veri geri gelmeli; diğer pencere 409. Arayüz ekran görüntüleri; önceki test takımları.

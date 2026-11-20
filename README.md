@@ -72,6 +72,7 @@ Tarihsiz kişisel notlar; isteğe bağlı iş bağlantısı. En son güncellenen
   - **Ekipler ve çalışanlar:** ekip ekleme, yeniden adlandırma, renk, sıra, silme (işler ve çalışanlar seçtiğiniz ekibe aktarılır). Ekip satırı açılınca çalışanlar: ekleme (Enter), yeniden adlandırma, **ekibini değiştirme** (atandığı işlere yeni ekip de eklenir), **aktif/pasif** (pasif çalışan yeni işlerde listelenmez ama mevcut işlerinde kalır) ve silme (işleri başka bir çalışana aktarılabilir ya da yalnızca işlerden kaldırılabilir). **Mail adresi:** ekip ve çalışan satırlarındaki alana yazıp Enter'a basın (ya da alandan çıkın); boşaltınca silinir, geçersiz adres kabul edilmez. Adresler mail taslağının alıcılarını belirler ve AI asistanına gönderilmez. Ekip, çalışan adı ya da mail adresiyle arama yapılabilir.
   - **Projeler:** ekleme, yeniden adlandırma, renk, arşivleme, silme; arama, Tümü / Aktif / Arşivde süzgeci, ada / iş sayısına / not sayısına göre sıralama, proje sayfasını açma.
   - **AI modelleri** (aşağıda).
+  - **Veri ve yedek:** tam yedek indirme, yedekten geri yükleme ve "Tüm aktif işleri sil" (aşağıda, *Yedek*).
 
 ## AI asistan (pano)
 Üst çubuktaki **AI Asistan** butonu sağda bir sohbet paneli açar. Doğal dille işleri oluşturabilir, düzenleyebilir ve taşıyabilir; **hatırlatma** ve **Notlarım** kayıtlarını ekleyip güncelleyebilir, arayabilir. Örnekler:
@@ -105,7 +106,7 @@ Model `openai/gpt-oss-120b`. Anahtar yalnızca sunucuda kalır, tarayıcıya gö
 3. AI panelinin ya da proje asistanının başlığındaki listeden modeli seçin (iki panel ortak; seçim bu tarayıcıda hatırlanır).
 
 Pano asistanının kartları değiştirebilmesi için model **araç çağırmayı (tool calling)** desteklemelidir (ör. Qwen 2.5, Llama 3.1+, Mistral Nemo). Proje asistanı araç kullanmaz; her sohbet modeliyle çalışır, ama bağlam penceresi küçük modellerde daha az kaynak gönderilir.
-Kayıtlı modeller ve anahtarları `data/ai-models.json` dosyasında **düz metin** olarak durur; tarayıcıya gönderilmez, yedeklere ve dışa aktarmaya dahil edilmez. Anahtarı silmek için düzenlerken anahtar alanına `-` yazıp kaydedin.
+Kayıtlı modeller ve anahtarları `data/ai-models.json` dosyasında **düz metin** olarak durur; tarayıcıya gönderilmez, yedeklere (tam yedek dahil) eklenmez. Anahtarı silmek için düzenlerken anahtar alanına `-` yazıp kaydedin.
 
 **Gizlilik:**
 - **Pano asistanı:** her mesajda panodaki aktif işlerin özeti (başlık, durum, sorumlu ekipler ve çalışanlar, proje, tarihler, açıklamanın ilk 300 karakteri, son not), ekip ve çalışan adları ve en yakın 20 açık hatırlatma gönderilir. Notlarım'dan yalnızca not sayısı gider; not metinleri ancak asistan notlarda arama yaptığında, bulunan notlar için gönderilir.
@@ -123,15 +124,18 @@ Mevcut verinize dokunulmaz; önce `data/backup/demo-oncesi-<zaman>.db` yedeği a
 ## Veri (`data/`)
 - `is-takip.db` – tüm veri: işler, arşiv, projeler, sorumlular, hatırlatmalar, notlarım, proje notları, ek bilgileri ve eklerden çıkarılmış metin önbelleği. Her değişiklik anında ve tek işlem halinde kaydedilir.
 - `attachments/` – ek dosyalarının kendisi ve açıklamalara/notlara yapıştırılan resimler.
-- `backup/` – sunucu her açılışta otomatik yedek alır (`<zaman>.db`); **yalnızca en son yedek tutulur**, yenisi başarıyla alınınca eskiler silinir.
+- `backup/` – sunucu her açılışta otomatik yedek alır (`<zaman>.db`, yalnızca veritabanı); yedekten geri yüklemeden önce mevcut durumun tam yedeği de buraya yazılır (`geri-yukleme-oncesi-<zaman>.zip`). **Yalnızca en son yedek tutulur**, yenisi başarıyla alınınca eskiler silinir.
+- `tmp/` – tam yedek üretilirken/geri yüklenirken kullanılan geçici dosyalar; sunucu her açılışta temizler.
 - `json-yedek-<zaman>/` – eski sürümden (JSON dosyaları) SQLite'a ilk geçişte özgün dosyalar buraya taşınır; silinmez.
 - `ai-models.json` – kayıtlı yerel AI modelleri (anahtarlar düz metin).
 
 Sayfa her açıldığında ve sekmeye dönüldüğünde veri sunucudan yeniden okunur. Hiçbir kaydın kullanmadığı ve 1 günden eski ekler, sunucu açılırken silinir.
 
-**Yedekten geri dönmek:** Sunucuyu kapatın, `data/is-takip.db` dosyasını bir yere kopyalayın, `data/backup/` içindeki `.db` dosyasını `data/is-takip.db` adıyla yerine koyun ve sunucuyu başlatın.
-
-**Önemli:** Açılış yedeği ve "Dışa/İçe Aktar" (.json) **ek dosyalarını içermez**. Ekleri de yedeklemek için `data/attachments/` klasörünü ayrıca kopyalayın. Yalnızca tek açılış yedeği tutulduğu için önemli dönemlerde "Yedek olarak dışa aktar" ile ayrıca yedek alın.
+### Yedek
+- **Tam yedek (önerilen):** Ayarlar → Veri ve yedek → **Yedek indir**. Tek bir `is-takip-yedek-<zaman>.zip` dosyası iner: veritabanının o anki tutarlı kopyası **ve tüm ek dosyaları** (açıklamalardaki resimler dahil). AI model ayarları ve API anahtarları dahil **değildir**. Sunucu yalnızca tek açılış yedeği tuttuğu için önemli dönemlerde tam yedek indirip başka bir yerde (OneDrive, harici disk…) saklayın; birden fazla sürüm tutmak sizin elinizde.
+- **Geri yükleme:** Ayarlar → Veri ve yedek → **Yedek seç…** ve indirdiğiniz `.zip`'i seçin. Önce yedeğin tarihi ve içeriği (iş, proje, not, ek sayıları) gösterilir; onaylarsanız **mevcut tüm veri ve ekler** bu yedekle değiştirilir. Bundan hemen önce mevcut durum `data/backup/geri-yukleme-oncesi-<zaman>.zip` olarak yedeklenir; yanlış dosyayı geri yüklediyseniz bu dosyayı aynı yolla geri yükleyerek dönebilirsiniz (sunucu bir sonraki açılışında yeni yedek alınca silinir). Dosya tümüyle doğrulanmadan hiçbir şey değiştirilmez; değiştirme sırasında bir sorun çıkarsa (ör. bir ek dosyası başka programda açık) eski veri geri gelir. Başka açık sekmeler varsa yenileyin.
+- **Açılış yedeğinden elle dönmek:** Sunucuyu kapatın, `data/is-takip.db` dosyasını bir yere kopyalayın, `data/backup/` içindeki `.db` dosyasını `data/is-takip.db` adıyla yerine koyun ve sunucuyu başlatın. Açılış yedeği ek dosyalarını içermez.
+- Eski sürümlerin JSON yedekleri (`is-takip-yedek-*.json`) artık içe aktarılamaz; JSON dışa/içe aktarma yerini tam yedeğe bıraktı.
 
 ## Ayarlar (ortam değişkenleri)
 `PORT` (varsayılan 3000), `DATA_DIR` (varsayılan `./data`). Sunucu sadece bu bilgisayardan erişilebilir (127.0.0.1).
