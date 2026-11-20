@@ -1,32 +1,51 @@
-<!-- Ayarlar: sorumlular, projeler, AI modelleri -->
+<!-- Ayarlar: ekipler ve çalışanlar, projeler, AI modelleri -->
 <div id="settingsPage" style="display:none;">
   <div class="archive-topbar">
     <div class="topbar-row"><h2 class="archive-heading">Ayarlar</h2></div>
   </div>
   <div class="settings-wrap">
-    <section class="settings-card" id="unitsSection">
-      <div class="settings-card-head">
-        <h3>Sorumlular</h3>
-        <p>Kartlarda ve sol menüde görünen sorumlu listesi. Sıralamayı oklarla değiştirebilirsiniz.</p>
+    <section class="settings-card settings-wide" id="unitsSection">
+      <div class="settings-card-head st-head">
+        <div>
+          <h3>Ekipler ve çalışanlar</h3>
+          <p>Ekipler kartlarda ve sol menüde görünür. Her çalışan bir ekibe bağlıdır; bir işe çalışan atanınca ekibi de atanır. Pasif çalışanlar yeni atamalarda listelenmez ama mevcut işlerde kalır.</p>
+        </div>
+        <div class="st-stats" id="unitStats"></div>
       </div>
-      <div class="settings-add">
-        <input type="text" id="newUnitName" placeholder="Yeni sorumlu adı" maxlength="80" />
-        <button type="button" class="btn btn-primary btn-sm" id="btnAddUnit">Ekle</button>
+      <div class="st-toolbar">
+        <label class="st-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="text" id="unitManageSearch" placeholder="Ekip ya da çalışan ara…" autocomplete="off" spellcheck="false" /></label>
+        <div class="settings-add">
+          <input type="text" id="newUnitName" placeholder="Yeni ekip adı" maxlength="80" />
+          <button type="button" class="btn btn-primary btn-sm" id="btnAddUnit">Ekip ekle</button>
+        </div>
       </div>
-      <div class="project-manage-list" id="unitManageList"></div>
+      <div class="st-list" id="unitManageList"></div>
+      <div class="st-empty" id="unitManageEmpty" style="display:none;">Eşleşen ekip ya da çalışan yok.</div>
     </section>
 
-    <section class="settings-card" id="projectsSection">
-      <div class="settings-card-head">
-        <h3>Projeler</h3>
-        <p>Arşivlenen projeler yeni işlerde seçilemez ama mevcut işlerde görünmeye devam eder.</p>
+    <section class="settings-card settings-wide" id="projectsSection">
+      <div class="settings-card-head st-head">
+        <div>
+          <h3>Projeler</h3>
+          <p>Arşivlenen projeler yeni işlerde seçilemez ama mevcut işlerde görünmeye devam eder.</p>
+        </div>
+        <div class="st-stats" id="projectStats"></div>
       </div>
-      <div class="settings-add">
-        <input type="text" id="newProjectName" placeholder="Yeni proje adı" maxlength="80" />
-        <button type="button" class="btn btn-primary btn-sm" id="btnAddProject">Ekle</button>
+      <div class="st-toolbar">
+        <label class="st-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="text" id="projectManageSearch" placeholder="Proje ara…" autocomplete="off" spellcheck="false" /></label>
+        <div class="st-seg" id="projectStatusFilter" role="group" aria-label="Duruma göre süz">
+          <button type="button" data-pstatus="all">Tümü</button><button type="button" data-pstatus="aktif">Aktif</button><button type="button" data-pstatus="arsivlenmis">Arşivde</button>
+        </div>
+        <select class="st-select" id="projectSort" aria-label="Sıralama">
+          <option value="name">Ada göre</option><option value="tasks">İş sayısına göre</option><option value="notes">Not sayısına göre</option>
+        </select>
+        <div class="settings-add">
+          <input type="text" id="newProjectName" placeholder="Yeni proje adı" maxlength="80" />
+          <button type="button" class="btn btn-primary btn-sm" id="btnAddProject">Proje ekle</button>
+        </div>
       </div>
-      <div class="project-manage-list" id="projectManageList"></div>
-      <div class="project-manage-empty" id="projectManageEmpty" style="display:none;">Henüz proje eklenmedi.</div>
+      <div class="st-list" id="projectManageList"></div>
+      <div class="st-empty" id="projectManageEmpty" style="display:none;">Henüz proje eklenmedi.</div>
     </section>
 
     <section class="settings-card settings-wide" id="aiModelsSection">

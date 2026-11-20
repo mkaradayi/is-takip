@@ -64,7 +64,7 @@ function bind(){
   var reloadFromServer = function(){
     if(document.visibilityState !== "visible" || Storage.hasUnsaved() || anyOverlayOpen()) return;
     if(AiChat && AiChat.isBusy()) return;   // AI turu sürerken veri altından değişmesin
-    if(document.activeElement && document.activeElement.matches && document.activeElement.matches("[data-rename],[data-urename]")) return;
+    if(document.activeElement && document.activeElement.matches && document.activeElement.matches("[data-rename],[data-urename],[data-mrename],[data-newmember],#unitManageSearch,#projectManageSearch")) return;
     if(state.remEditing || state.memoEditing) return;   // hatırlatma/not düzenlenirken veri altından değişmesin
     Storage.load().then(function(data){
       if(Storage.hasUnsaved() || anyOverlayOpen()) return;

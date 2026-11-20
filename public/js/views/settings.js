@@ -1,10 +1,11 @@
-/* Ayarlar: sorumlu ve proje yönetimi (görünüm + eylemler) */
+/* Ayarlar: ekipler ve çalışanlar, projeler (görünüm + eylemler) */
 import { ICON, PROJECT_COLORS } from "../core/config.js";
-import { allTasks, projectTaskCount, unitTaskCount } from "../core/domain.js";
+import { allTasks, memberTaskCount, projectTaskCount, searchKey, unitTaskCount } from "../core/domain.js";
 import { UNIT_MAP, getProject, normalizeProject, normalizeUnit, notesOfProject, setUnits, state } from "../core/state.js";
 import { commit } from "../core/storage.js";
 import { showConfirm, showInfo, toast } from "../core/ui.js";
-import { $, esc, uid } from "../core/utils.js";
+import { $, esc, initials, uid } from "../core/utils.js";
+import { openProject } from "./projects.js";
 import { sortedProjects } from "./sidebar.js";
 
 /* Tek renk noktası; tıklayınca palet açılır (satırda ad alanına yer kalsın) */
@@ -18,30 +19,154 @@ export function swatches(attr, id, current){
 export function closeColorPops(except){
   Array.prototype.forEach.call(document.querySelectorAll(".color-pop.open"), function(p){ if(p !== except) p.classList.remove("open"); });
 }
+/* Ayarlar arayüz durumu (bellekte): arama, açık ekipler, proje süzgeci ve sıralaması */
+var ui = { unitQ: "", openUnits: {}, projQ: "", projStatus: "all", projSort: "name" };
+function pill(text, cls){ return '<span class="st-pill' + (cls ? " " + cls : "") + '">' + text + '</span>'; }
+
+function memberRow(u, m){
+  var n = memberTaskCount(m.id);
+  return '<div class="st-member' + (m.active ? "" : " inactive") + '">' +
+    '<span class="ms-avatar" style="background:' + u.color + ';">' + esc(initials(m.name)) + '</span>' +
+    '<input type="text" class="st-name" value="' + esc(m.name) + '" data-mrename="' + m.id + '" maxlength="80" aria-label="Çalışan adı" />' +
+    '<span class="st-meta">' + pill(n + " iş") + '</span>' +
+    '<select class="st-select st-move" data-mmove="' + m.id + '" title="Ekibini değiştir" aria-label="Ekibini değiştir">' +
+      state.units.map(function(x){ return '<option value="' + x.id + '"' + (x.id === u.id ? " selected" : "") + '>' + esc(x.name) + '</option>'; }).join("") + '</select>' +
+    '<button type="button" class="st-switch' + (m.active ? " on" : "") + '" data-mactive="' + m.id + '" aria-pressed="' + m.active + '" title="' + (m.active ? "Pasif yap: yeni atamalarda listelenmez" : "Aktif yap") + '">' +
+      '<span class="st-switch-knob"></span>' + (m.active ? "Aktif" : "Pasif") + '</button>' +
+    '<div class="project-manage-actions"><button type="button" data-mdel="' + m.id + '" title="Çalışanı sil">' + ICON.trash + '</button></div></div>';
+}
 export function renderUnitManage(){
-  var last = state.units.length - 1;
-  $("unitManageList").innerHTML = state.units.map(function(u, i){
-    return '<div class="project-manage-item">' + swatches("data-uswatch", u.id, u.color) +
-      '<input type="text" value="' + esc(u.name) + '" data-urename="' + u.id + '" maxlength="80" />' +
-      '<span class="project-status-pill">' + unitTaskCount(u.id) + ' iş</span>' +
-      '<div class="project-manage-actions">' +
-        '<button type="button" data-umove="' + u.id + '" data-dir="-1" title="Yukarı taşı"' + (i === 0 ? " disabled" : "") + '>' + ICON.up + '</button>' +
-        '<button type="button" data-umove="' + u.id + '" data-dir="1" title="Aşağı taşı"' + (i === last ? " disabled" : "") + '>' + ICON.down + '</button>' +
-        '<button type="button" data-udel="' + u.id + '" title="Sil">' + ICON.trash + '</button></div></div>';
-  }).join("");
+  var q = searchKey(ui.unitQ.trim()), last = state.units.length - 1, html = "", shown = 0;
+  var memberTotal = 0, passive = 0;
+  state.units.forEach(function(u){ memberTotal += u.members.length; passive += u.members.filter(function(m){ return !m.active; }).length; });
+  $("unitStats").innerHTML = pill(state.units.length + " ekip") + pill(memberTotal + " çalışan") + (passive ? pill(passive + " pasif", "muted") : "");
+  state.units.forEach(function(u, i){
+    var unitHit = !q || searchKey(u.name).indexOf(q) !== -1;
+    var hits = q ? u.members.filter(function(m){ return searchKey(m.name).indexOf(q) !== -1; }) : u.members;
+    if(q && !unitHit && !hits.length) return;
+    shown++;
+    var open = !!ui.openUnits[u.id] || (q && !unitHit && hits.length > 0);
+    var members = q && !unitHit ? hits : u.members;
+    html += '<div class="st-unit' + (open ? " open" : "") + '">' +
+      '<div class="st-row">' +
+        '<button type="button" class="st-caret" data-uopen="' + u.id + '" aria-expanded="' + open + '" title="' + (open ? "Çalışanları gizle" : "Çalışanları göster") + '">' + ICON.chevron + '</button>' +
+        swatches("data-uswatch", u.id, u.color) +
+        '<input type="text" class="st-name st-unit-name" value="' + esc(u.name) + '" data-urename="' + u.id + '" maxlength="80" aria-label="Ekip adı" />' +
+        '<span class="st-meta">' + pill(u.members.length + " çalışan") + pill(unitTaskCount(u.id) + " iş") + '</span>' +
+        '<div class="project-manage-actions">' +
+          '<button type="button" data-umove="' + u.id + '" data-dir="-1" title="Yukarı taşı"' + (i === 0 || q ? " disabled" : "") + '>' + ICON.up + '</button>' +
+          '<button type="button" data-umove="' + u.id + '" data-dir="1" title="Aşağı taşı"' + (i === last || q ? " disabled" : "") + '>' + ICON.down + '</button>' +
+          '<button type="button" data-udel="' + u.id + '" title="Ekibi sil">' + ICON.trash + '</button></div>' +
+      '</div>' +
+      (open ? '<div class="st-members">' + (members.length ? members.map(function(m){ return memberRow(u, m); }).join("") : '<div class="st-members-empty">Bu ekipte henüz çalışan yok.</div>') +
+        (q ? "" : '<div class="st-add-member"><input type="text" data-newmember="' + u.id + '" placeholder="Yeni çalışan adı" maxlength="80" aria-label="' + esc(u.name) + ' ekibine çalışan ekle" />' +
+          '<button type="button" class="btn btn-sm" data-addmember="' + u.id + '">Çalışan ekle</button></div>') + '</div>' : "") +
+    '</div>';
+  });
+  $("unitManageList").innerHTML = html;
+  $("unitManageEmpty").style.display = shown ? "none" : "block";
 }
 export function renderProjectManage(){
   var list = $("projectManageList"), empty = $("projectManageEmpty");
-  if(!state.projects.length){ list.innerHTML = ""; empty.style.display = "block"; return; }
+  var active = state.projects.filter(function(p){ return p.status === "aktif"; }).length;
+  $("projectStats").innerHTML = pill(state.projects.length + " proje") + pill(active + " aktif") + (state.projects.length - active ? pill((state.projects.length - active) + " arşivde", "muted") : "");
+  Array.prototype.forEach.call($("projectStatusFilter").children, function(b){ b.classList.toggle("active", b.getAttribute("data-pstatus") === ui.projStatus); });
+  var q = searchKey(ui.projQ.trim());
+  var items = sortedProjects().filter(function(p){
+    return (ui.projStatus === "all" || p.status === ui.projStatus) && (!q || searchKey(p.name).indexOf(q) !== -1);
+  }).map(function(p){ return { p: p, tasks: projectTaskCount(p.id), notes: notesOfProject(p.id).length }; });
+  if(ui.projSort !== "name") items.sort(function(a, b){ return (b[ui.projSort] - a[ui.projSort]) || a.p.name.localeCompare(b.p.name, "tr"); });
+  if(!items.length){
+    list.innerHTML = ""; empty.style.display = "block";
+    empty.textContent = state.projects.length ? "Bu süzgece uyan proje yok." : "Henüz proje eklenmedi.";
+    return;
+  }
   empty.style.display = "none";
-  list.innerHTML = sortedProjects().map(function(p){
-    return '<div class="project-manage-item">' + swatches("data-swatch", p.id, p.color) +
-      '<input type="text" value="' + esc(p.name) + '" data-rename="' + p.id + '" maxlength="80" />' +
-      '<span class="project-status-pill ' + (p.status === "arsivlenmis" ? "archived" : "") + '">' + (p.status === "arsivlenmis" ? "Arşivde" : projectTaskCount(p.id) + " iş") + '</span>' +
+  list.innerHTML = items.map(function(x){
+    var p = x.p, arch = p.status === "arsivlenmis";
+    return '<div class="st-row st-project' + (arch ? " archived" : "") + '">' + swatches("data-swatch", p.id, p.color) +
+      '<input type="text" class="st-name" value="' + esc(p.name) + '" data-rename="' + p.id + '" maxlength="80" aria-label="Proje adı" />' +
+      '<span class="st-meta">' + pill(x.tasks + " iş") + pill(x.notes + " not") + pill(arch ? "Arşivde" : "Aktif", arch ? "muted" : "ok") + '</span>' +
       '<div class="project-manage-actions">' +
-        '<button type="button" data-toggle="' + p.id + '" title="' + (p.status === "aktif" ? "Arşivle" : "Aktif Et") + '">' + ICON.archive + '</button>' +
-        '<button type="button" data-pdel="' + p.id + '" title="Kalıcı Sil">' + ICON.trash + '</button></div></div>';
+        '<button type="button" data-popen="' + p.id + '" title="Proje sayfasını aç">' + ICON.folder + '</button>' +
+        '<button type="button" data-toggle="' + p.id + '" title="' + (arch ? "Aktif et" : "Arşivle") + '">' + (arch ? ICON.restore : ICON.archive) + '</button>' +
+        '<button type="button" data-pdel="' + p.id + '" title="Kalıcı sil">' + ICON.trash + '</button></div></div>';
   }).join("");
+}
+
+/* ---------- Çalışan eylemleri ---------- */
+function memberById(id){
+  for(var i = 0; i < state.units.length; i++){
+    var m = state.units[i].members.filter(function(x){ return x.id === id; })[0];
+    if(m) return { unit: state.units[i], member: m };
+  }
+  return null;
+}
+export function addMember(unitId){
+  var u = UNIT_MAP[unitId], inp = document.querySelector('[data-newmember="' + unitId + '"]');
+  if(!u || !inp) return;
+  var name = inp.value.trim();
+  if(!name){ inp.focus(); return; }
+  if(u.members.some(function(m){ return m.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"); })){
+    toast('"' + u.name + '" ekibinde "' + name + '" adlı bir çalışan zaten var', true); inp.focus(); return;
+  }
+  u.members.push({ id: uid(), name: name.slice(0, 80), active: true });
+  setUnits(state.units);
+  ui.openUnits[unitId] = true;
+  commit(["units"], '"' + name + '" ' + u.name + ' ekibine eklendi');
+  var again = document.querySelector('[data-newmember="' + unitId + '"]'); if(again) again.focus();
+}
+export function renameMember(id, name){
+  var r = memberById(id); name = name.trim();
+  if(!r || !name || name === r.member.name){ renderUnitManage(); return; }
+  r.member.name = name.slice(0, 80); setUnits(state.units);
+  commit(["units"], "Çalışan adı güncellendi");
+}
+export function toggleMember(id){
+  var r = memberById(id); if(!r) return;
+  r.member.active = !r.member.active; setUnits(state.units);
+  commit(["units"], '"' + r.member.name + '" ' + (r.member.active ? "aktif yapıldı" : "pasif yapıldı (işlerde kalır, yeni atamalarda listelenmez)"));
+}
+/* Çalışan başka ekibe taşınınca, atandığı işlere yeni ekibi de eklenir (çalışanın ekibi her zaman işin ekipleri içinde olmalı) */
+export function moveMember(id, target){
+  var r = memberById(id), tu = UNIT_MAP[target];
+  if(!r || !tu || r.unit.id === target) return;
+  r.unit.members = r.unit.members.filter(function(m){ return m.id !== id; });
+  tu.members.push(r.member);
+  setUnits(state.units);
+  var n = 0;
+  allTasks().forEach(function(t){ if(t.members.indexOf(id) !== -1 && t.units.indexOf(target) === -1){ t.units.push(target); n++; } });
+  ui.openUnits[target] = true;
+  commit(n ? ["units", "tasks", "archive"] : ["units"], '"' + r.member.name + '" → ' + tu.name + (n ? " (" + n + " işe ekip eklendi)" : ""));
+}
+export function deleteMember(id){
+  var r = memberById(id); if(!r) return;
+  var n = memberTaskCount(id), name = r.member.name;
+  var remove = function(target){
+    r.unit.members = r.unit.members.filter(function(m){ return m.id !== id; });
+    var tm = target ? memberById(target) : null;
+    allTasks().forEach(function(t){
+      var i = t.members.indexOf(id); if(i === -1) return;
+      t.members.splice(i, 1);
+      if(tm){
+        if(t.members.indexOf(target) === -1) t.members.push(target);
+        if(t.units.indexOf(tm.unit.id) === -1) t.units.push(tm.unit.id);
+      }
+    });
+    setUnits(state.units);
+    if(state.filterMember === id) state.filterMember = "all";
+    commit(n ? ["units", "tasks", "archive"] : ["units"], '"' + name + '" silindi' + (n ? (tm ? ", " + n + " iş " + tm.member.name + " adlı çalışana aktarıldı" : ", " + n + " işten kaldırıldı") : ""));
+  };
+  if(!n) return showConfirm({ title: "Çalışanı sil", message: '"' + name + '" silinecek.', confirmLabel: "Sil", danger: true, onConfirm: function(){ remove(""); } });
+  var others = [{ id: "", name: "— Aktarma, yalnızca işlerden kaldır —" }];
+  state.units.forEach(function(u){ u.members.forEach(function(m){ if(m.id !== id && m.active) others.push({ id: m.id, name: m.name + " (" + u.name + ")" }); }); });
+  showConfirm({
+    title: "Çalışanı sil",
+    message: '"' + name + '" ' + n + ' işe (aktif + arşiv) atanmış. İşleri başka bir çalışana aktarabilir ya da yalnızca işlerden kaldırabilirsiniz; işlerin ekipleri korunur.',
+    confirmLabel: "Sil", danger: true,
+    select: { label: "İşlerin aktarılacağı çalışan", options: others, value: "" },
+    onConfirm: remove
+  });
 }
 export function renderSettings(){ renderUnitManage(); renderProjectManage(); }
 
@@ -52,20 +177,20 @@ export function addUnit(){
   var inp = $("newUnitName"), name = inp.value.trim();
   if(!name){ inp.focus(); return; }
   if(state.units.some(function(u){ return u.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"); })){
-    toast('"' + name + '" adlı bir sorumlu zaten var', true); inp.focus(); return;
+    toast('"' + name + '" adlı bir ekip zaten var', true); inp.focus(); return;
   }
   var u = normalizeUnit({ id: uid(), name: name, color: nextColor(state.units.map(function(x){ return x.color; })), order: state.units.length });
   setUnits(state.units.concat(u));
-  inp.value = ""; commit(["units"], '"' + name + '" sorumlusu eklendi'); inp.focus();
+  inp.value = ""; commit(["units"], '"' + name + '" ekibi eklendi'); inp.focus();
 }
 export function renameUnit(id, name){
   var u = UNIT_MAP[id]; name = name.trim();
   if(!u || !name || name === u.name){ renderUnitManage(); return; }
-  u.name = name; commit(["units"], "Sorumlu adı güncellendi");
+  u.name = name; commit(["units"], "Ekip adı güncellendi");
 }
 export function recolorUnit(id, color){
   var u = UNIT_MAP[id]; if(!u) return;
-  u.color = color; commit(["units"], "Sorumlu rengi güncellendi");
+  u.color = color; commit(["units"], "Ekip rengi güncellendi");
 }
 export function moveUnit(id, dir){
   var i = state.units.indexOf(UNIT_MAP[id]), j = i + dir;
@@ -158,30 +283,49 @@ export function deleteProject(id){
 
 /* Olay bağlama (main.js → bind) */
 export function bindSettings(){
-  /* Ayarlar: sorumlular */
+  /* Ayarlar: ekipler ve çalışanlar */
   $("btnAddUnit").onclick = addUnit;
   $("newUnitName").onkeydown = function(e){ if(e.key === "Enter"){ e.preventDefault(); addUnit(); } };
+  $("unitManageSearch").oninput = function(e){ ui.unitQ = e.target.value; renderUnitManage(); };
   var ul = $("unitManageList");
-  ul.onchange = function(e){ var i = e.target.closest("[data-urename]"); if(i) renameUnit(i.getAttribute("data-urename"), i.value); };
-  ul.onkeydown = function(e){ if(e.key === "Enter" && e.target.matches("[data-urename]")) e.target.blur(); };
+  ul.onchange = function(e){
+    var i = e.target.closest("[data-urename]"), mr = e.target.closest("[data-mrename]"), mv = e.target.closest("[data-mmove]");
+    if(i) renameUnit(i.getAttribute("data-urename"), i.value);
+    else if(mr) renameMember(mr.getAttribute("data-mrename"), mr.value);
+    else if(mv) moveMember(mv.getAttribute("data-mmove"), mv.value);
+  };
+  ul.onkeydown = function(e){
+    if(e.key !== "Enter") return;
+    if(e.target.matches("[data-urename],[data-mrename]")) e.target.blur();
+    else if(e.target.matches("[data-newmember]")){ e.preventDefault(); addMember(e.target.getAttribute("data-newmember")); }
+  };
   ul.onclick = function(e){
-    var s = e.target.closest("[data-uswatch]"), m = e.target.closest("[data-umove]"), d = e.target.closest("[data-udel]");
+    var s = e.target.closest("[data-uswatch]"), m = e.target.closest("[data-umove]"), d = e.target.closest("[data-udel]"), o = e.target.closest("[data-uopen]");
+    var am = e.target.closest("[data-addmember]"), ma = e.target.closest("[data-mactive]"), md = e.target.closest("[data-mdel]");
     if(s) recolorUnit(s.getAttribute("data-uswatch"), s.getAttribute("data-color"));
     else if(m) moveUnit(m.getAttribute("data-umove"), +m.getAttribute("data-dir"));
     else if(d) deleteUnit(d.getAttribute("data-udel"));
+    else if(o){ var id = o.getAttribute("data-uopen"); ui.openUnits[id] = !o.closest(".st-unit").classList.contains("open"); renderUnitManage(); }
+    else if(am) addMember(am.getAttribute("data-addmember"));
+    else if(ma) toggleMember(ma.getAttribute("data-mactive"));
+    else if(md) deleteMember(md.getAttribute("data-mdel"));
   };
 
   /* Ayarlar: projeler */
   $("btnAddProject").onclick = addProject;
   $("newProjectName").onkeydown = function(e){ if(e.key === "Enter"){ e.preventDefault(); addProject(); } };
+  $("projectManageSearch").oninput = function(e){ ui.projQ = e.target.value; renderProjectManage(); };
+  $("projectStatusFilter").onclick = function(e){ var b = e.target.closest("[data-pstatus]"); if(b){ ui.projStatus = b.getAttribute("data-pstatus"); renderProjectManage(); } };
+  $("projectSort").onchange = function(e){ ui.projSort = e.target.value; renderProjectManage(); };
   var pl = $("projectManageList");
   pl.onchange = function(e){ var i = e.target.closest("[data-rename]"); if(i) renameProject(i.getAttribute("data-rename"), i.value); };
   pl.onkeydown = function(e){ if(e.key === "Enter" && e.target.matches("[data-rename]")) e.target.blur(); };
   pl.onclick = function(e){
-    var s = e.target.closest("[data-swatch]"), t = e.target.closest("[data-toggle]"), d = e.target.closest("[data-pdel]");
+    var s = e.target.closest("[data-swatch]"), t = e.target.closest("[data-toggle]"), d = e.target.closest("[data-pdel]"), op = e.target.closest("[data-popen]");
     if(s) recolorProject(s.getAttribute("data-swatch"), s.getAttribute("data-color"));
     else if(t) toggleProject(t.getAttribute("data-toggle"));
     else if(d) deleteProject(d.getAttribute("data-pdel"));
+    else if(op) openProject(op.getAttribute("data-popen"));
   };
 
   /* Ayarlar: renk paleti aç/kapa (dışarı tıklayınca kapanır) */
