@@ -1,0 +1,69 @@
+<!-- Ayarlar: sorumlular, projeler, AI modelleri -->
+<div id="settingsPage" style="display:none;">
+  <div class="archive-topbar">
+    <div class="topbar-row"><h2 class="archive-heading">Ayarlar</h2></div>
+  </div>
+  <div class="settings-wrap">
+    <section class="settings-card" id="unitsSection">
+      <div class="settings-card-head">
+        <h3>Sorumlular</h3>
+        <p>Kartlarda ve sol menüde görünen sorumlu listesi. Sıralamayı oklarla değiştirebilirsiniz.</p>
+      </div>
+      <div class="settings-add">
+        <input type="text" id="newUnitName" placeholder="Yeni sorumlu adı" maxlength="80" />
+        <button type="button" class="btn btn-primary btn-sm" id="btnAddUnit">Ekle</button>
+      </div>
+      <div class="project-manage-list" id="unitManageList"></div>
+    </section>
+
+    <section class="settings-card" id="projectsSection">
+      <div class="settings-card-head">
+        <h3>Projeler</h3>
+        <p>Arşivlenen projeler yeni işlerde seçilemez ama mevcut işlerde görünmeye devam eder.</p>
+      </div>
+      <div class="settings-add">
+        <input type="text" id="newProjectName" placeholder="Yeni proje adı" maxlength="80" />
+        <button type="button" class="btn btn-primary btn-sm" id="btnAddProject">Ekle</button>
+      </div>
+      <div class="project-manage-list" id="projectManageList"></div>
+      <div class="project-manage-empty" id="projectManageEmpty" style="display:none;">Henüz proje eklenmedi.</div>
+    </section>
+
+    <section class="settings-card settings-wide" id="aiModelsSection">
+      <div class="settings-card-head">
+        <h3>AI Modelleri</h3>
+        <p>AI asistanın kullanabileceği modeller. OpenAI uyumlu her sunucu eklenebilir (Ollama, LM Studio, vLLM, llama.cpp…). Model kartları oluşturabilmek için <b>araç çağırmayı (tool calling)</b> desteklemelidir. Anahtarlar yalnızca sunucuda, <code>data/ai-models.json</code> dosyasında saklanır.</p>
+      </div>
+      <div class="model-list" id="modelList"></div>
+      <form class="model-form" id="modelForm" autocomplete="off">
+        <div class="model-form-title" id="modelFormTitle">Yeni model ekle</div>
+        <div class="model-presets">
+          <span>Hazır adres:</span>
+          <button type="button" class="chip-btn" data-preset="http://localhost:11434/v1" data-pname="Ollama">Ollama</button>
+          <button type="button" class="chip-btn" data-preset="http://localhost:1234/v1" data-pname="LM Studio">LM Studio</button>
+          <button type="button" class="chip-btn" data-preset="http://localhost:8080/v1" data-pname="llama.cpp">llama.cpp</button>
+          <button type="button" class="chip-btn" data-preset="http://localhost:8000/v1" data-pname="vLLM">vLLM</button>
+        </div>
+        <div class="model-grid">
+          <div class="field"><label for="mName">Görünen ad</label><input type="text" id="mName" maxlength="80" placeholder="Örn. Ollama · Qwen 2.5 14B" /></div>
+          <div class="field"><label for="mBase">Adres (base URL)</label><input type="text" id="mBase" placeholder="http://localhost:11434/v1" /></div>
+          <div class="field">
+            <label for="mModel">Model adı</label>
+            <div class="model-name-row">
+              <input type="text" id="mModel" list="mModelList" placeholder="Örn. qwen2.5:14b" />
+              <button type="button" class="btn btn-sm" id="mFetch" title="Sunucudaki modelleri getir">Modelleri getir</button>
+            </div>
+            <datalist id="mModelList"></datalist>
+          </div>
+          <div class="field"><label for="mKey" id="mKeyLabel">API anahtarı <span class="opt-mark">(opsiyonel)</span></label><input type="password" id="mKey" placeholder="Yerel sunucularda genelde gerekmez" /></div>
+        </div>
+        <div class="model-form-status" id="mStatus"></div>
+        <div class="model-form-actions">
+          <button type="button" class="btn btn-sm" id="mCancel" style="display:none;">Vazgeç</button>
+          <button type="button" class="btn btn-sm" id="mTest">Bağlantıyı test et</button>
+          <button type="submit" class="btn btn-sm btn-primary" id="mSave">Kaydet</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>

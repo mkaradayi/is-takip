@@ -1,0 +1,31 @@
+<!-- Notlarım sayfası -->
+<div id="memosPage" style="display:none;">
+  <div class="archive-topbar">
+    <div class="topbar-row">
+      <h2 class="archive-heading">Notlarım</h2>
+      <span class="rem-sub">Tarihsiz kişisel notlar; isterseniz bir işe bağlayın.</span>
+      <div class="spacer"></div>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="memoSearch" placeholder="Notlarda ara…" />
+      </div>
+    </div>
+    <div class="rem-add">
+      <textarea id="memoText" rows="3" maxlength="5000" placeholder="Not yazın… (Ctrl+Enter ekler)"></textarea>
+      <div class="rem-form-row">
+        <select id="memoTask" title="İsteğe bağlı: bir işe bağlayın"></select>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-primary btn-sm" id="btnAddMemo">Ekle</button>
+      </div>
+    </div>
+  </div>
+  <div class="archive-wrap">
+    <div class="rem-list" id="memoList"></div>
+    <div class="archive-empty" id="memoNoMatch"><h3>Eşleşen not yok</h3><p>Aramayı değiştirin ya da temizleyin.</p></div>
+    <div class="archive-empty" id="memoEmpty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13l3 3v13H4z"/><path d="M8 9h9M8 13h9M8 17h5"/></svg>
+      <h3>Henüz not yok</h3>
+      <p>Yukarıdan kendinize bir not ekleyin. Notlar tarihsizdir; en son güncellenen en üstte görünür.</p>
+    </div>
+  </div>
+</div>

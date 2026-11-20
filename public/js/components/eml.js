@@ -1,9 +1,8 @@
 /* İş Takip — .eml (MIME) taslak oluşturucu.
    Outlook, "X-Unsent: 1" başlıklı .eml dosyasını gönderilmemiş, düzenlenebilir bir taslak olarak açar.
-   window.Eml.build({ subject, html, text, inline:[{ cid, name, type, bytes }], attachments:[{ name, type, bytes }] }) → string
+   Eml.build({ subject, html, text, inline:[{ cid, name, type, bytes }], attachments:[{ name, type, bytes }] }) → string
    Yapı: multipart/mixed → [ multipart/alternative → [ text/plain, multipart/related → [ text/html, resimler ] ], ekler ] */
-(function(){
-"use strict";
+export const Eml = (function(){
 var CRLF = "\r\n";
 
 function utf8(s){ return new TextEncoder().encode(String(s)); }
@@ -82,5 +81,5 @@ function build(o){
   ].join(CRLF);
 }
 
-window.Eml = { build: build };
+return { build: build };
 })();

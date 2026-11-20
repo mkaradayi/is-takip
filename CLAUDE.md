@@ -19,22 +19,43 @@ Yerel çalışan, **bağımlılıksız** bir kanban iş takip uygulaması: Node.
 10. **Veritabanı `listen` başarılı olduktan sonra açılır** (`startStorage`): port doluysa (eski sunucu çalışıyorsa) JSON göçü yapılmaz ve veri ikiye bölünmez. Açılmadan gelen `/api/*` isteği 503 alır.
 
 ## Dosyalar
+Derleme adımı yok. İstemci **ES modülleri** (`<script type="module" src="js/main.js">`), sunucu **CommonJS** (`lib/`). Her dosyanın ilk satırı ne yaptığını söyler.
+
+**Sunucu** — [server.js](server.js) yalnızca başlatıcıdır (`listen` → `startStorage` → yedek → ek temizliği). Kod [lib/](lib/) altında; modüller arasında **döngüsel require yok** (sıra: util/config → fs-util → db → attachments → ai-common → ai-board/ai-project → http-util → static → routes):
 | Dosya | İçerik |
 |---|---|
-| [server.js](server.js) | HTTP sunucu, statik dosyalar, SQLite veri katmanı (`openDb`, `readKindFull`, `writeKind`, `migrateFromJson`, `backupDb`), ekler, ek metni (`attText`), sahipsiz ek temizliği, `.env`, AI aracısı (pano: `aiChat`, proje: `aiProject` + `projectContext`), model kaydı |
-| [extract.js](extract.js) | `extract(buf, name, type)` → `{status, text, reason}`: txt/md/csv/json/xml, html, eml (MIME, RFC 2047), docx (elle ZIP), pdf (Flate, ToUnicode CMap, Tj/TJ). `VERSION` artırılırsa önbellek yenilenir |
-| [public/index.html](public/index.html) | Tüm DOM: kenar çubuğu, Pano / Projeler / Hatırlatma / Notlarım / Arşiv / Ayarlar sayfaları, iş modalı, proje notu modalı (`pnOverlay`), onay modalı, seçim çubuğu, AI paneli |
-| [public/app.js](public/app.js) | Ana uygulama (IIFE). Bölümler: CONFIG → UTILS → STATE/normalize → STORAGE → DOMAIN → VIEWS (pano, uyarılar, hatırlatmalar, notlarım, projeler + proje asistanı, ayarlar) → İŞ MODALI → eylemler → mail → AI köprüsü → yedek → INIT (`bind()`, `boot()`) |
-| [public/editor.js](public/editor.js) | `window.RichEditor`: `create(host, {placeholder, onImage, onAttach, onFiles})` (çoklu örnek destekli) + `sanitize` / `toPlain` / `fromPlain` |
-| [public/eml.js](public/eml.js) | `window.Eml.build(...)`: MIME `.eml` taslak oluşturucu (Outlook için `X-Unsent: 1`) |
-| [public/ai.js](public/ai.js) | `window.AiChat`: pano sohbet paneli, araç döngüsü, durdurma, eylem kartları / Geri al; `AiChat.format` güvenli biçimlendirici |
-| [public/ai-models.js](public/ai-models.js) | `window.AiModels`: Ayarlar → AI Modelleri; `list/selected/select/onChange` (pano ve proje asistanı ortak kullanır) |
-| [public/style.css](public/style.css) | Tüm stiller (CSS değişkenleri `:root` içinde) |
+| [lib/config.js](lib/config.js) | `.env` okuma, `PORT/HOST/DATA_DIR/PUBLIC_DIR`, `KINDS`, `SAFE_ID`, `MIME`, sınırlar. `ROOT` proje köküdür (`lib/`'in bir üstü) |
+| [lib/db.js](lib/db.js) | SQLite: `openDb`, `readKindFull`, `writeKind` (+409), `migrateFromJson`, `backupDb`, `startStorage/closeStorage`. `db` değişkeni yeniden açılabildiği için diğer modüller **`getDb()`** kullanır |
+| [lib/attachments.js](lib/attachments.js) | Ek kaydetme/sunma, `attText` (metin önbelleği), `cleanupOrphanAttachments` (`ATT_KINDS`) |
+| [lib/extract.js](lib/extract.js) | `extract(buf, name, type)` → `{status, text, reason}`: txt/md/csv/json/xml, html, eml (MIME, RFC 2047), docx (elle ZIP), pdf (Flate, ToUnicode CMap, Tj/TJ). `VERSION` artırılırsa önbellek yenilenir |
+| [lib/ai-common.js](lib/ai-common.js) | AI sabitleri, model kaydı (`data/ai-models.json`), `resolveModel`, `aiHeaders`, `netError`, `stripThink`, `testModel` |
+| [lib/ai-board.js](lib/ai-board.js) | Pano asistanı: `cleanBoard`, araç şemaları (`aiTools`), sistem mesajı (`aiSystem`), `aiChat` |
+| [lib/ai-project.js](lib/ai-project.js) | Proje asistanı: `projectContext`, `fitBudget`, `aiProject` |
+| [lib/http-util.js](lib/http-util.js) | `send`, `readBody`, `sameOriginOk` (Host + Origin) |
+| [lib/static.js](lib/static.js) | Statik dosyalar + **HTML parçalarını birleştirme**: `<!-- @include partials/ad.html -->` satırı `public/partials/ad.html` ile değiştirilir (yalnızca `[w-]+` ad; iç içe include yok) |
+| [lib/routes.js](lib/routes.js) | Tüm `/api/*` rotaları (`handle(req, res)`) |
+| [lib/util.js](lib/util.js) | `s(v, max)` metin kırpma |
+
+**İstemci** — [public/](public/):
+| Yer | İçerik |
+|---|---|
+| [public/index.html](public/index.html) | Yalnızca iskelet: CSS bağlantıları + `@include` satırları + modül girişi |
+| [public/partials/](public/partials/) | Sayfa/pencere HTML'leri: `sidebar`, `board`, `projects`, `reminders`, `memos`, `archive`, `settings`, `ai-panel`, `select-bar`, `task-modal`, `project-note-modal`, `dialogs` (onay, toast, bağlantı hatası) |
+| [public/css/](public/css/) | `base` (değişkenler `:root`) → `sidebar` → `board` → `pages` → `settings` → `modal` → `ai` → `responsive`. **Sıra önemli** (aynı özgüllükte sonraki kazanır; `responsive.css` en sonda) |
+| [public/js/main.js](public/js/main.js) | Giriş: `bind()` (her modülün `bindX()`'ini çağırır + üst çubuk, kapanış uyarısı, odakta yeniden yükleme), `boot()`, `setFatal`, `reloadPage` |
+| `js/core/` | `config` (STATUSES, PRIORITIES, ICON…), `utils` (`$`, `esc`, tarih), `state` (`state`, `normalize*`, `setUnits`, `UNIT_MAP`), `storage` (`Storage`, `commit`), `domain` (`urgency`, `needsDates`, `taskMatch`, `filteredTasks`), `ui` (`toast`, `showConfirm/showInfo`, `bindBackdropClose`, tarih alanı), `render` (`renderAll`, `VIEWS`, `switchView`), `overlays` (`topOverlayClose`, `anyOverlayOpen`) |
+| `js/views/` | `sidebar`, `board` (sekmeler, kartlar, sürükle-bırak), `alerts`, `archive`, `reminders`, `memos`, `projects`, `project-assistant` (`pa*`), `settings` |
+| `js/modals/` | `task-modal` (iş penceresi, `saveTask`, `modalSnapshot`), `project-note-modal` |
+| `js/features/` | `task-actions` (sil/arşivle/geri al/taşı/seç), `mail` (.eml), `ai-bridge` (`aiBoardSnapshot`, `aiApply`, `aiUndo`), `backup` (JSON dışa/içe), `reminder-notify` |
+| `js/components/` | Bağımsız bileşenler: `editor` (`RichEditor`: `create` + `sanitize`/`toPlain`/`fromPlain`), `eml` (`Eml.build`, `X-Unsent: 1`), `ai-models` (`AiModels`), `ai-chat` (`AiChat`; `AiChat.format` güvenli biçimlendirici) |
+
+**Modül kuralları:** her modül kullandığı adları açıkça `import` eder; globaller (`window.X`) yok. İçe aktarılan `var`'a başka modülden **atama yapılamaz** (ES modül bağları salt okunur): değiştirilecek değer ya sahibi modülde bir fonksiyonla değiştirilir (ör. `reloadPage`, `startReminderTimer`) ya da `state` nesnesinin alanıdır. Döngüsel `import`'lar var ve sorun değil, çünkü modüllerin üst düzeyi yalnızca tanım yapar; her şey `main.js`'teki `bind()` / `boot()` ile başlar. Yeni bir üst düzey kodun başka modüldeki **değişkene** (fonksiyona değil) açılışta erişmesinden kaçının.
+
+| Diğer | |
+|---|---|
 | [tools/demo-veri.js](tools/demo-veri.js) | Demo veri yükleyici (`--sil` ile kaldırır); çalışan sunucunun API'sini kullanır, önce `POST /api/backup` ile `demo-oncesi` yedeği alır |
 | `servis/` | `servis.ps1` (`-Kur [-TarayiciAc]` / `-Kaldir` / `-Durum`; Node sürüm kontrolü; UTF-8 **BOM**'lu), `gizli.vbs` (penceresiz başlatıcı), `calistir.cmd` (yeniden başlatma döngüsü + `logs/` loglama), `servis-*.bat` (ASCII, CRLF) |
 | `.env` / `.env.example` | `OPENROUTER_API_KEY=...` (`.env` gizli; içeriğini okumayın veya yazdırmayın) |
-
-Script yükleme sırası önemli: `editor.js` → `eml.js` → `ai-models.js` → `ai.js` → `app.js`. `app.js` içindeki `bind()`, `AiModels.init` ve `AiChat.init`'i çağırır.
 
 ## Veri modeli
 **SQLite şeması** (`data/is-takip.db`, `PRAGMA user_version = 1`, `journal_mode=DELETE`, `synchronous=FULL`):
@@ -93,9 +114,9 @@ Ortam değişkenleri: `PORT`, `DATA_DIR`, `HOST`, `OPENROUTER_API_KEY` (ortamdak
 - **Eski sunucu uyarısı**: `boot` sırasında `meta`'da yeni türler yoksa "Sunucuyu yeniden başlatın" uyarısı; PUT 404 dönerse aynı açıklayıcı mesaj.
 
 ## AI (önemli ayrıntılar)
-**Pano asistanı** (`/api/ai/chat`, `ai.js`): sunucu yalnızca aracıdır; sistem mesajı, araç şemaları ve sınırlar sunucuda. Araçları tarayıcı çalıştırır (`aiApply`), sonuçları `tool` mesajı olarak geri gönderir; mesaj başına en fazla 6 tur. Araçlar: `create_tasks`, `update_tasks`, `move_tasks`, `list_tasks`, `get_task`; **silme/arşivleme yok**. `aiApply` öğe öğe doğrular, geçerlileri tek `commit` ile uygular, `applied: 0` ise `warning` döner; her adım için geri alma kaydı (`aiUndo`). Modal açıkken değişiklik reddedilir. Pano özeti her işte hazır `due` metni taşır; sistem mesajında 14 günlük takvim var. Kurallar: tarih uydurma, id gösterme, varsayılan sorumlu/öncelik, özeti yalnızca `ok` listesine dayandır, toplu işte önce `list_tasks`.
+**Pano asistanı** (`/api/ai/chat`, `lib/ai-board.js` + `js/components/ai-chat.js` + `js/features/ai-bridge.js`): sunucu yalnızca aracıdır; sistem mesajı, araç şemaları ve sınırlar sunucuda. Araçları tarayıcı çalıştırır (`aiApply`), sonuçları `tool` mesajı olarak geri gönderir; mesaj başına en fazla 6 tur. Araçlar: `create_tasks`, `update_tasks`, `move_tasks`, `list_tasks`, `get_task`; **silme/arşivleme yok**. `aiApply` öğe öğe doğrular, geçerlileri tek `commit` ile uygular, `applied: 0` ise `warning` döner; her adım için geri alma kaydı (`aiUndo`). Modal açıkken değişiklik reddedilir. Pano özeti her işte hazır `due` metni taşır; sistem mesajında 14 günlük takvim var. Kurallar: tarih uydurma, id gösterme, varsayılan sorumlu/öncelik, özeti yalnızca `ok` listesine dayandır, toplu işte önce `list_tasks`.
 
-**Proje asistanı** (`/api/ai/project`, `app.js` → `pa*` fonksiyonları): bağlamı `projectContext` DB'den kurar: seçili notların `text`'i, eklerin `attText` metni (okunamayanlar yalnızca adıyla `unreadable`), isteğe bağlı işler. **Bütçe**: yerleşik 150 bin, yerel 40 bin karakter; `fitBudget` tek bir üst sınırla adil kırpar (küçük kaynaklar tam kalır). Sistem mesajı: yalnızca kaynaklara dayan, uydurma, `[Not: …]`/`[Dosya: …]` diye kaynak göster, tablo/başlık kullanma. Zaman aşımı en az 180 sn. İstemci okunamayan ek kimliklerini de gönderir (adlarının bildirilmesi için). Sohbet bellekte; "Yanıtı nota kaydet" → yeni `projectNotes` kaydı. Model seçimi pano asistanıyla ortak (`AiModels`).
+**Proje asistanı** (`/api/ai/project`, `lib/ai-project.js` + `js/views/project-assistant.js` → `pa*` fonksiyonları): bağlamı `projectContext` DB'den kurar: seçili notların `text`'i, eklerin `attText` metni (okunamayanlar yalnızca adıyla `unreadable`), isteğe bağlı işler. **Bütçe**: yerleşik 150 bin, yerel 40 bin karakter; `fitBudget` tek bir üst sınırla adil kırpar (küçük kaynaklar tam kalır). Sistem mesajı: yalnızca kaynaklara dayan, uydurma, `[Not: …]`/`[Dosya: …]` diye kaynak göster, tablo/başlık kullanma. Zaman aşımı en az 180 sn. İstemci okunamayan ek kimliklerini de gönderir (adlarının bildirilmesi için). Sohbet bellekte; "Yanıtı nota kaydet" → yeni `projectNotes` kaydı. Model seçimi pano asistanıyla ortak (`AiModels`).
 
 **Modeller:** yerleşik `openrouter` → `openai/gpt-oss-120b` (`X-Title` başlığı; pano isteklerinde `provider.require_parameters`). Ek modeller OpenAI uyumlu `baseUrl + /chat/completions`; zaman aşımı 180 sn. `<think>` metni atılır. Seçili model `localStorage` (`isTakip.aiModel`).
 
@@ -104,14 +125,14 @@ Ortam değişkenleri: `PORT`, `DATA_DIR`, `HOST`, `OPENROUTER_API_KEY` (ortamdak
 ## Test yaklaşımı
 Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp çalıştırılır. Aynı yöntemi tekrarlayın:
 - **Gerçek veriye dokunmayın.** Testte `DATA_DIR=<scratchpad>/<klasör> PORT=3917 node server.js`. `data/` kullanıcının gerçek verisidir; kullanıcının sunucusu 3000'dedir (penceresiz servis olabilir). Gerçek veriyle bir şey doğrulamak gerekirse `data/`'yı **kopyalayıp** kopyada çalışın (yalnızca okuma isteği bile 3000'e gönderilecekse GET olsun).
-- **Tarayıcı testi:** Chrome headless (`--headless=new --remote-debugging-port=9333 --user-data-dir=<geçici>`), Node 24'ün yerleşik `WebSocket`'iyle CDP: `Runtime.evaluate`, `Page.captureScreenshot`, `Input.dispatchMouseEvent`/`dispatchKeyEvent` (gerçek fare olayları; ör. modal dışına taşan seçim), `Page.printToPDF` (gerçekçi PDF test dosyası üretmek için). Konsol hatalarını `Runtime.exceptionThrown` ile toplayın. `state` IIFE içindedir, dışarıdan erişilemez: DOM'dan okuyun ya da sunucu API'sine bakın.
+- **Tarayıcı testi:** Chrome headless (`--headless=new --remote-debugging-port=9333 --user-data-dir=<geçici>`), Node 24'ün yerleşik `WebSocket`'iyle CDP: `Runtime.evaluate`, `Page.captureScreenshot`, `Input.dispatchMouseEvent`/`dispatchKeyEvent` (gerçek fare olayları; ör. modal dışına taşan seçim), `Page.printToPDF` (gerçekçi PDF test dosyası üretmek için). Konsol hatalarını `Runtime.exceptionThrown` ile toplayın. `state` bir ES modülünün içindedir, dışarıdan (ör. `Runtime.evaluate`) erişilemez: DOM'dan okuyun ya da sunucu API'sine bakın.
 - **Sürükle-bırak**: sentetik `DragEvent` + `DataTransfer` ile (`dragstart` karta, `dragover`/`drop` sekmeye).
 - **AI testi:** `OPENROUTER_URL=http://127.0.0.1:<port>/v1/chat/completions OPENROUTER_API_KEY=test-...` ile sahte OpenAI uyumlu sunucu; kuyruktan yanıt döndürüp istekleri kaydetsin (gönderilen sistem mesajını doğrulamak için), gecikme ve HTTP hata kodu da verebilsin. Canlı deneme: ortam değişkenlerini silip `.env`'deki anahtarla, **yalnızca sentetik veriyle**.
 - **Demo veri:** `DATA_DIR=... PORT=3917 node tools/demo-veri.js` (28 iş, 4 proje, 3 arşiv kaydı; 7 gecikmiş, 3 bugün, 5 yakın).
 - **Göç testi:** eski sürüm `server.js`'in bir kopyasıyla JSON verisi üretip yeni sunucuyu aynı klasörde açın; `/api/state` birebir aynı olmalı.
 - **Servis testi:** `servis.ps1 -GorevAdi IsTakip-Test -Port 3917 -VeriKlasoru <geçici>`; bittiğinde görevi ve `logs/server-3917.log`'u silin. Kullanıcının "IsTakip" görevine dokunmayın.
 - `node --check <dosya>`; PowerShell için `[System.Management.Automation.Language.Parser]::ParseFile`.
-- **`server.js` / `extract.js` değişirse** kullanıcıya sunucuyu yeniden başlatmasını söyleyin: `servis\servis-kur.bat` (eski sunucuyu durdurup yenisini başlatır); elle çalışıyorsa `node server.js` penceresinde Ctrl+C + yeniden çalıştır. Yalnızca `public/` değiştiyse F5 yeterlidir (statik dosyalar `no-cache`).
+- **`server.js` / `lib/` değişirse** kullanıcıya sunucuyu yeniden başlatmasını söyleyin: `servis\servis-kur.bat` (eski sunucuyu durdurup yenisini başlatır); elle çalışıyorsa `node server.js` penceresinde Ctrl+C + yeniden çalıştır. Yalnızca `public/` değiştiyse F5 yeterlidir (statik dosyalar `no-cache`).
 
 ## Bilinen tuzaklar
 - **Eski sunucu + yeni arayüz:** `public/` hemen yenilenir ama sunucu eski kodla çalışmaya devam eder → yeni türler 404. Arayüz bunu uyarır; kullanıcıya yeniden başlatmayı hatırlatın.
@@ -147,6 +168,7 @@ Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp ça
    - Hatırlatmalar; sonra kullanıcı isteğiyle **Notlarım** (tarihsiz) ayrı tür ve sayfa oldu.
    - Proje sayfaları + proje notları; `extract.js` ile ek metni; **proje asistanı** (LLM ile notlar + ekler üzerinden soru-cevap).
 10. `baslat.bat` kaldırıldı (yerini `servis-kur.bat` aldı; tarayıcıyı da o açıyor); proje git'e işlendi ve `main`'e birleştirildi; `data/` git takibinden çıkarıldı.
+11. **12 yeni istek planı (PLAN.md sonu):** kod modüllere bölündü — istemci `public/js/` (ES modülleri), HTML `public/partials/` (sunucu birleştiriyor), CSS `public/css/`, sunucu `lib/`. Davranış değişmedi (önce/sonra ekran görüntüleri piksel düzeyinde aynı).
 
 ## Kullanıcı tercihleri ve çalışma biçimi
 - Kullanıcı Türkçe yazıyor; açıklamaları ve özetleri Türkçe verin.

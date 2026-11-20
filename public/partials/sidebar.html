@@ -1,0 +1,72 @@
+<!-- Kenar çubuğu: gezinme, filtreler, yedek düğmeleri, kayıt durumu -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-role">Veri Mimarisi ve Altyapı Müdürlüğü</div>
+    <div class="brand-title">İş Takip</div>
+    <div class="brand-sub">Kişisel &amp; Birim İşleri Panosu</div>
+  </div>
+
+  <div class="view-switch">
+    <button type="button" class="view-tab active" id="tabBoard" data-view="board">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="10" rx="1.5"/></svg>
+      Pano
+    </button>
+    <button type="button" class="view-tab" id="tabProjects" data-view="projects" title="Proje sayfaları: notlar, dosyalar, işler">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+      Projeler
+      <span class="view-count" id="projCountBadge" style="display:none;">0</span>
+    </button>
+    <button type="button" class="view-tab" id="tabReminders" data-view="reminders" title="Tarihli hatırlatmalar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      Hatırlatma
+      <span class="view-count due" id="remCountBadge" style="display:none;" title="Bugün ve gecikmiş hatırlatmalar">0</span>
+    </button>
+    <button type="button" class="view-tab" id="tabMemos" data-view="memos" title="Tarihsiz kişisel notlar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13l3 3v13H4z"/><path d="M8 9h9M8 13h9M8 17h5"/></svg>
+      Notlarım
+      <span class="view-count" id="memoCountBadge" style="display:none;">0</span>
+    </button>
+    <button type="button" class="view-tab" id="tabArchive" data-view="archive">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 13h4"/></svg>
+      Arşiv
+      <span class="view-count" id="archiveCountBadge">0</span>
+    </button>
+    <button type="button" class="view-tab" id="tabSettings" data-view="settings" title="Ayarlar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      Ayarlar
+    </button>
+  </div>
+
+  <div class="side-section">
+    <div class="side-label">Sorumlu</div>
+    <div id="unitList"></div>
+  </div>
+
+  <div class="side-section">
+    <div class="side-label">Öncelik</div>
+    <div class="prio-row" id="prioFilterRow"></div>
+  </div>
+
+  <div class="side-section">
+    <div class="side-label">Proje</div>
+    <div id="projectList"></div>
+  </div>
+
+  <div class="sidebar-footer">
+    <button class="side-btn" id="btnExport">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+      Yedek olarak dışa aktar (.json)
+    </button>
+    <button class="side-btn" id="btnImport">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="M7 14l5-5 5 5"/><path d="M5 3h14"/></svg>
+      Yedekten içe aktar (.json)
+    </button>
+    <button class="side-btn" id="btnClear">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      Tüm aktif işleri sil
+    </button>
+    <input type="file" id="fileInput" class="file-hidden" accept="application/json" />
+    <div class="save-status" id="saveStatus"><span class="status-dot"></span><span>Yükleniyor…</span></div>
+    <div class="storage-note" id="storageNote">Veriler sunucudaki <b>data/is-takip.db</b> veritabanına otomatik yazılır. Dışa/içe aktarma yalnızca yedek içindir (ek dosyaları içermez).</div>
+  </div>
+</aside>

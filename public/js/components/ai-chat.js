@@ -1,17 +1,18 @@
 /* İş Takip — AI asistan paneli.
    Sunucu (/api/ai/chat) yalnızca OpenRouter'a aracılık eder; modelin istediği araçları (kart oluştur/düzenle/taşı)
-   app.js'teki köprü çalıştırır, sonuçlar "tool" mesajı olarak modele geri gönderilir.
+   features/ai-bridge.js köprüsü çalıştırır, sonuçlar "tool" mesajı olarak modele geri gönderilir.
    Sohbet yalnızca bellekte tutulur; sayfa yenilenince sıfırlanır.
-   window.AiChat.init({ getBoard, applyTools, undo, openTask }) */
-(function(){
-"use strict";
+   AiChat.init({ getBoard, applyTools, undo, openTask }) */
+import { AiModels } from "./ai-models.js";
+
+export const AiChat = (function(){
 
 var MAX_ROUNDS = 6;          // bir kullanıcı mesajı için en fazla model ↔ araç turu
 var MAX_SEND = 30;           // modele gönderilen en fazla geçmiş mesaj
 var PREF_OPEN = "isTakip.aiOpen";
 var EXAMPLES = ["Gecikmiş işleri listele", "Yarın bitecek kritik bir iş ekle", "Devam eden işlerin önceliğini yükselt"];
 
-var B = null;                // app.js köprüsü
+var B = null;                // features/ai-bridge.js köprüsü (init ile verilir)
 var history = [];            // modele giden mesajlar (user / assistant / tool)
 var items = [];              // ekranda gösterilenler: { kind: user|assistant|action|error|info, ... }
 var busy = false, ctrl = null;
@@ -102,7 +103,7 @@ function post(){
   return fetch("/api/ai/chat", {
     method: "POST", signal: ctrl.signal,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: trimmed(), board: B.getBoard(), modelId: window.AiModels ? AiModels.selected().id : undefined })
+    body: JSON.stringify({ messages: trimmed(), board: B.getBoard(), modelId: AiModels.selected().id })
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
       if(!r.ok) throw new Error(j.error || ("Sunucu hatası (HTTP " + r.status + ")"));
@@ -201,5 +202,5 @@ function init(bridge){
 }
 
 /* format: güvenli model metni biçimlendirici (proje asistanı da kullanır) */
-window.AiChat = { init: init, isBusy: function(){ return busy; }, send: send, format: fmt };
+return { init: init, isBusy: function(){ return busy; }, send: send, format: fmt };
 })();

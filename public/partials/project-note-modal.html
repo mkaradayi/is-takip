@@ -1,0 +1,38 @@
+<!-- Proje notu penceresi -->
+<div class="overlay" id="pnOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <div style="flex:1;">
+        <div class="modal-title" id="pnModalTitle">Yeni proje notu</div>
+        <div class="modal-entry-date" id="pnModalSub"></div>
+      </div>
+      <button class="modal-close" id="pnClose" aria-label="Kapat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field" style="flex:2;">
+          <label for="pnTitle">Başlık</label>
+          <input type="text" id="pnTitle" maxlength="200" placeholder="Örn. 12.11 yönlendirme komitesi toplantısı" />
+        </div>
+        <div class="field" style="flex:1;">
+          <label for="pnProject">Proje</label>
+          <select id="pnProject"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>İçerik</label>
+        <div id="pnEditor"></div>
+        <div class="att-list" id="pnAttList"></div>
+        <input type="file" id="pnAttInput" class="file-hidden" multiple />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="btnPnDelete" style="color:#9A3B1F; border-color:#F0B79E; display:none;">Sil</button>
+      <div class="spacer"></div>
+      <button class="btn" id="btnPnCancel">Vazgeç</button>
+      <button class="btn btn-primary" id="btnPnSave">Kaydet</button>
+    </div>
+  </div>
+</div>

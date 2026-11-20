@@ -6,7 +6,7 @@ Yerel çalışan, bağımlılıksız iş takip uygulaması. Veriler tarayıcıda
 1. **Node.js 22.13 veya üstü** kurulu olmalı (LTS önerilir): https://nodejs.org
 2. **Windows (önerilen):** `servis\servis-kur.bat` dosyasına bir kez çift tıklayın. Uygulama arka planda başlar, tarayıcı http://localhost:3000 adresiyle açılır ve bundan sonra her oturum açılışında kendiliğinden çalışır (aşağıya bakın). Tarayıcıda adresi yer imlerine ekleyin.
 3. **Elle çalıştırma (her sistem):** proje klasöründe `node server.js`, ardından http://localhost:3000. Açılan pencere (sunucu) açık kalmalı; kapatmak için Ctrl+C.
-4. Uygulama güncellendiğinde (`server.js` değiştiğinde) sunucuyu yeniden başlatın (`servis-kur.bat`'ı tekrar çalıştırın). Sunucu eski sürümde kalırsa sayfa "Sunucuyu yeniden başlatın" uyarısı gösterir.
+4. Uygulama güncellendiğinde (`server.js` ya da `lib/` değiştiğinde) sunucuyu yeniden başlatın (`servis-kur.bat`'ı tekrar çalıştırın). Sunucu eski sürümde kalırsa sayfa "Sunucuyu yeniden başlatın" uyarısı gösterir.
 
 ## Otomatik başlatma (Windows)
 Uygulama, oturum açılınca arka planda (penceresiz) başlayacak şekilde kurulur. Bunun için Windows Görev Zamanlayıcı kullanılır; yönetici izni ya da ek program gerekmez.

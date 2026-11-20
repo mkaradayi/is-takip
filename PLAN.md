@@ -497,3 +497,129 @@ Bütün testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome 
 9. **Hatırlatmalar:** ekle / tamamla / düzenle / sil; işe bağlı hatırlatmadan modal açılmalı; bugün tarihli hatırlatma uyarı rozetinde görünmeli; 1 dakika sonrasına saatli hatırlatma → toast.
 10. **Proje:** not + docx + pdf + txt ekle → çıkarma durumları doğru görünmeli. Sahte LLM sunucusuna giden istekte kaynak metinleri bulunmalı, `apiKey` bulunmamalı. Kırpma uyarısı gösterilmeli. Gerçek modelle kısa bir özet denemesi yapılacak.
 11. **Gerileme:** arşivleme, geri alma, AI araçları ve Geri al, içe/dışa aktarma (yeni türler dahil), çakışma, yanlış Host/Origin → 403, XSS yükleri.
+
+---
+
+# İş Takip — 12 Yeni İstek Planı
+
+## Context
+Önceki plan ("11 Yeni İstek") tamamlandı. Kullanıcı şu istekleri iletti:
+- **Arayüz düzeltmeleri:** dar ekranda alt alta gelen kartlar arasında boşluk kalması; seçim kutusu yüzünden iş başlığının içeride görünmesi; kenar çubuğundaki gezinme ızgarasında başlıkların hizasız olması.
+- **Ölçeklenme:** sorumlu ve proje sayısı arttıkça hem sol kenar çubuğu hem de iş penceresi bozuluyor.
+- **Veri modeli:** ekibin altında **çalışan** olacak; bir işe **birden fazla ekip ve çalışan** atanabilecek.
+- **Ayarlar:** sorumlu ve proje yönetimi daha profesyonel olacak (çalışanlar dahil).
+- **Yeni özellikler:** takvim (aylık + haftalık), AI'nin hatırlatma ve Notlarım kayıtlarını yönetebilmesi.
+- **Kod yapısı:** tek dosyalık uzun yapılar (app.js 2580, server.js 908, index.html 617, style.css 808 satır) modüllere bölünecek.
+
+**Alınan kararlar (kullanıcı):**
+- Her çalışan **tek bir ekibe** bağlı. Bir işe birden fazla ekip ve çalışan seçilebilir. Çalışan seçilince ekibi de otomatik seçilir. Çalışan seçmeden yalnızca ekip seçmek de mümkün.
+- Kenar çubuğu filtreleri **aranabilir, katlanır listeler** olacak. İş penceresinde **aranabilir çoklu seçim** kutusu kullanılacak.
+- Kod **ES modüllerine** bölünecek (istemci: `public/js/`, sunucu: `lib/` altında CommonJS), derleme adımı yok. Bu iş **ilk** yapılacak.
+- Takvim: **aylık + haftalık** görünüm. Gantt ve rapor sayfası bu planda yok.
+
+**Değişmeyen ilkeler** (CLAUDE.md): bağımlılık yok; tek yazma akışı (`commit` → `Storage.save`, `baseUpdatedAt` ile 409); `normalize*` + `esc`; `sameOriginOk`; API anahtarı tarayıcıya gitmez; DB `listen` sonrası açılır.
+
+**Çalışma biçimi:** plan PLAN.md'nin sonuna eklenecek. Her madde bitince headless Chrome ile test edilecek (`DATA_DIR=<scratchpad>`, port 3917) ve ekran görüntüsüyle doğrulanacak. Ardından checklist işaretlenip "devam edeyim mi?" diye sorulacak.
+
+---
+
+## 1. Kodun modüllere bölünmesi (davranış değişmez)
+**İstemci** — `public/js/` (`<script type="module" src="js/main.js">`). `editor.js`, `eml.js`, `ai-models.js` ve `ai.js` de modüle çevrilecek. `window.RichEditor` gibi globaller kaldırılıp `import` kullanılacak:
+- `core/`: `config.js` (STATUSES, PRIORITIES, DEFAULT_UNITS, ICON), `utils.js` (`$`, `esc`, `uid`, `safeId`, tarih yardımcıları, `searchKey`), `state.js` (`state`, `normalize*`, `setUnits`, `UNIT_MAP`), `storage.js` (`Storage`, `commit`), `ui.js` (`showConfirm`, `showInfo`, `toast`, `bindBackdropClose`), `domain.js` (`urgency`, `needsDates`, `moveTask`, `taskMatch`, `filteredTasks`).
+- `views/`: `sidebar.js`, `board.js` (sekmeler, kartlar, sürükle-bırak, seçim), `alerts.js`, `reminders.js`, `memos.js`, `projects.js` + `project-assistant.js`, `archive.js`, `settings.js`, `calendar.js` (madde 7).
+- `modals/`: `task-modal.js`, `project-note-modal.js`.
+- `features/`: `mail.js`, `ai-bridge.js` (`aiApply`, `aiUndo`, board özeti), `backup.js` (içe/dışa aktarma), `reminder-notify.js`.
+- `main.js`: `boot()`, `bind()`, `renderAll()`.
+- Döngüsel bağımlılık olmaması için `renderAll` bir olay/kayıt mekanizmasıyla çağrılacak: `core/render.js` içinde `registerRenderer(fn)` ve `renderAll()`.
+- **HTML:** `public/index.html` yalnızca iskelet olarak kalacak. Sayfalar `public/partials/*.html` dosyalarına taşınacak (`board`, `projects`, `reminders`, `memos`, `archive`, `settings`, `task-modal`, `project-note-modal`, `ai-panel`). Sunucu, `index.html` isteğinde `<!-- @include partials/x.html -->` satırlarını birleştirecek (`lib/static.js`; dosya değişim zamanına göre önbellek, yalnızca `partials/` altından, `..` reddedilir). Böylece tarayıcı tek bir HTML alır ve ek istek ya da zamanlama sorunu olmaz.
+- **CSS:** `public/css/` altında `base.css` (değişkenler), `layout.css`, `sidebar.css`, `board.css`, `modal.css`, `pages.css`, `settings.css`, `ai.css`. `index.html` bunları sırayla `<link>` ile yükleyecek.
+
+**Sunucu** — `server.js` yalnızca başlatıcı olarak kalacak. `lib/` altına bölünecek: `config.js` (`.env`, sabitler), `http-util.js` (`send`, `readBody`, `sameOriginOk`), `db.js` (`openDb`, `readKindFull`, `writeKind`, `migrateFromJson`, `backupDb`), `attachments.js` (yükleme, sahipsiz ek temizliği, `attText`), `ai-common.js` (`resolveModel`, `aiHeaders`, `netError`, `stripThink`, model kaydı), `ai-board.js` (`aiChat`, araç şemaları, sistem mesajı), `ai-project.js` (`projectContext`, `fitBudget`), `static.js`, `routes.js`. `extract.js` → `lib/extract.js`.
+
+**Doğrulama:** 11. maddedeki gerileme testleri, değişiklik öncesi ve sonrası aynı demo veriyle çalıştırılacak: `/api/state` aynı olmalı, ekran görüntüleri aynı olmalı, konsol hatası olmamalı. Servis betikleri `server.js`'i çağırdığı için değişmeyecek (kontrol edilecek). CLAUDE.md'deki dosya tablosu güncellenecek.
+
+## 2. Arayüz düzeltmeleri
+- **Kart boşlukları:** `.tab-grid` CSS grid'i, satırdaki en uzun kart kadar yükseklik ayırdığı için alt alta gelen kartlar arasında boşluk kalıyor. Yerine **masonry düzeni** gelecek: `board.js` kartları N sütuna dağıtacak (sütun sayısı genişlikten hesaplanır: `minmax(280px)` mantığı). Her kart en kısa sütuna eklenir. Okuma sırası soldan sağa korunur. `ResizeObserver` ile sütun sayısı değişince yeniden dağıtılır. Sürükle-bırak ve seçim bundan etkilenmez.
+  - *Varsayım:* sorun bu. Ekran görüntüsüyle doğrulanacak; farklıysa düzeltilecek.
+- **Seçim kutusu:** `.card-check` başlığın solundan çıkarılıp sağdaki arşiv ve silme ikonlarının yanına (onlardan önce) taşınacak. Başlık kartın sol kenarıyla hizalı olacak. Kutu yine opacity ile gizlenecek. Seçim varken (`board.selecting`) bütün kartlarda görünür kalacak.
+- **Gezinme ızgarası:** `.view-switch` 2 sütunlu ızgarada ikon ve metinler ortalı, rozetler ise metni kaydırıyor. Bunun yerine **tek sütunlu dikey gezinme menüsü** gelecek: sabit ikon sütunu (16 px), sola yaslı başlık, sağa yaslı sayaç rozeti; aktif öğede sol vurgu çizgisi. Takvim sekmesi de buraya eklenecek (madde 7).
+
+## 3. Veri modeli: ekipler, çalışanlar, çoklu atama
+- **`units`** (ekipler) türüne `members: [{ id, name, active }]` alanı eklenecek. `normalizeUnit` üyeleri `SAFE_ID` ile ve ad ≤ 80 karakter olacak şekilde doğrulayacak. Ayrı bir tür açılmayacak; sunucu `KINDS` aynı kalacak.
+- **Görevler:** `unit: "id"` → `units: ["id", …]` (en az 1) + `members: ["id", …]`.
+  - `normalizeTask` eski `unit` alanını `units: [unit]` olarak göç ettirecek (eski yedekleri içe aktarırken de).
+  - Seçilen çalışanın ekibi `units` içinde yoksa otomatik eklenecek.
+  - Bilinmeyen ekip veya çalışan korunacak ve "(silinmiş …)" olarak görünecek.
+  - Kaydetmede `unit` alanı yazılmayacak. Sunucu türden bağımsız JSON sakladığı için göç istemcide yapılacak; ilk `commit`'te yazılacak.
+- **Etkilenen yerler** (`grep \.unit` ile 69 kullanım): filtre (`filteredTasks`: işin ekiplerinden biri ya da çalışanlarından biri eşleşirse), kart etiketleri (en çok 2 ekip + "+N", çalışan baş harfleri), uyarı satırları, mail (`mailTaskHtml`/`Text`), arşiv, demo betiği, ekip silme (işler hedef ekibe aktarılır, çalışanlar da taşınabilir), içe aktarma.
+- **AI (pano asistanı):** board özeti ve araç şemaları (`lib/ai-board.js`) `units[]` ve `members[]` alanlarını kullanacak. `create_tasks`/`update_tasks` ekip ve çalışan **adı veya id'si** kabul edecek. `list_tasks` ekip ya da çalışan filtresi alacak. Sistem mesajında ekip ve çalışan listesi yer alacak. Proje asistanının iş özeti de ekip ve çalışan adlarını gösterecek.
+
+## 4. Ölçeklenen seçiciler
+- **Ortak bileşen** `components/multi-select.js`: aranabilir açılır liste; ekipler grup başlığı, çalışanlar onun altında görünür. Klavye desteği (↑↓, Enter, Esc). Seçilenler çip olarak gösterilir ve çipteki × ile kaldırılır. Tekli seçim kipi de olacak. Arama `searchKey` ile yapılacak.
+- **İş penceresi:** `fUnitSeg` (buton şeridi) yerine "Sorumlular" çoklu seçicisi (ekip + çalışan) gelecek. `fProject` select'i yerine aranabilir tekli seçici gelecek (arşivlenmiş projeler ayrı grupta). `modalSnapshot` yeni alanları içerecek.
+- **Kenar çubuğu:** "Sorumlu" ve "Proje" bölümleri katlanır olacak (durum `localStorage`'da). Her bölümde 6 öğeden fazlası varsa arama kutusu çıkacak. İlk 6 öğe gösterilecek, "N tane daha" ile gerisi açılacak. Liste en fazla yaklaşık 40vh yükseklikte olacak ve kendi içinde kayacak.
+  - Ekip satırındaki ok ile çalışanlar açılacak. Filtre `state.filterUnit` → `{ type: "unit" | "member", id }` olacak.
+  - Seçili filtre, bölüm katlıyken başlıkta çip olarak görünecek.
+
+## 5. Ayarlar: Ekipler ve Projeler
+- **Ekipler ve çalışanlar** kartı: arama kutusu ve ekip listesi. Her ekip açılır bir satırdır: renk, ad, iş sayısı, çalışan sayısı, sıralama, sil. Açılınca çalışan listesi görünür: ad (satır içi düzenleme), iş sayısı, pasif yap / sil, "Çalışan ekle" satırı.
+  - Çalışan silinirken işi varsa: başka çalışana aktar ya da yalnızca işlerden kaldır (`showConfirm` + `select`).
+  - "Pasif" çalışan seçicilerde görünmez ama işlerde korunur.
+- **Projeler** kartı: arama, durum filtresi (Aktif / Arşivde / Tümü), sıralama (ad / iş sayısı), satırda iş ve not sayısı ile proje sayfasına bağlantı.
+- Görünüm: ortak `settings-table` stili, sabit sütun hizaları, boş durum ve sayaçlar; dar ekranda tek sütun.
+
+## 6. AI: hatırlatma ve Notlarım araçları
+- Yeni araçlar (`lib/ai-board.js` şemaları, istemcide `features/ai-bridge.js` → `aiApply`):
+  - `create_reminders`, `update_reminders` (metin, tarih, saat, tamamlandı, işe bağlama), `list_reminders`,
+  - `create_memos`, `update_memos`, `list_memos`.
+- **Silme yok** (görevlerdeki kural korunuyor). Her araç öğe öğe doğrulama yapacak (`normalizeReminder`/`normalizeMemo`, tarih zorunlu, `TIME_RE`), tek `commit` ve `aiUndo` kaydı oluşturacak, `applied: 0` olursa `warning` döndürecek.
+- Board özetine yaklaşan hatırlatmaların sayısı ve ilk 20'si eklenecek (notların tam metni gönderilmeyecek; gerekirse `list_memos` ile alınacak). Sistem mesajına kurallar eklenecek: tarih uydurma, saat belirtilmediyse boş bırak.
+- Eylem kartları (`ai.js`) hatırlatma ve not için ikon ve "Geri al" gösterecek.
+
+## 7. Takvim sayfası (aylık + haftalık)
+- Kenar çubuğuna "Takvim" sekmesi eklenecek. `views/calendar.js`: üst çubukta ‹ Bugün ›, Ay/Hafta düğmesi ve dönem başlığı olacak. Seçili görünüm `localStorage`'da tutulacak.
+- **Aylık:** 6×7 ızgara, Pazartesi başlangıçlı. İşler başlangıç–bitiş aralığında **çubuklar** olarak görünecek (hafta satırlarına bölünür, şeritlere yerleştirilir, renk önceliğe ya da ilk ekibe göre). Gün başına 3 şerit gösterilip fazlası "+N" ile belirtilecek. Hatırlatmalar küçük zil satırı olarak görünecek. Bugün vurgulanacak, gecikmiş işler kırmızı kenarlı olacak.
+- **Haftalık:** 7 sütun; üstte çok günlük iş çubukları, altta gün başına hatırlatmalar (saatliler saat sırasıyla) ve o gün termini olan işler.
+- Tarihi olmayan işler (Backlog) gösterilmeyecek; üst çubukta "N tarihsiz iş" bilgisi olacak.
+- Kenar çubuğu filtreleri (ekip/çalışan, öncelik, proje) ve arama takvimde de geçerli olacak. Tamamlanan ve iptal edilen işleri göster/gizle seçeneği olacak.
+- İşe tıklayınca iş modalı, hatırlatmaya tıklayınca hatırlatmalar sayfası açılacak. Boş güne çift tıklayınca o tarihli yeni iş modalı açılacak (başlangıç ve bitiş o gün olarak dolu gelecek).
+
+---
+
+## Önem / uygulama sırası
+1. Modüllere bölme (sonraki tüm değişiklikler yeni yapıya yazılsın diye ilk sırada)
+2. Arayüz düzeltmeleri (küçük ve hemen görünen)
+3. Ekip/çalışan veri modeli
+4. Ölçeklenen seçiciler (3'e dayanıyor)
+5. Ayarlar (3 ve 4'e dayanıyor)
+6. AI hatırlatma ve not araçları
+7. Takvim
+
+## Yeniden kullanılacaklar
+`esc`, `uid`, `safeId`, `searchKey`, `normalize*`, `commit`/`Storage.save`, `showConfirm` (+`select`)/`showInfo`/`toast`, `bindBackdropClose`, `modalSnapshot`, `trToISO`/`isoToTR`/`daysBetween`/`todayISO`, `urgency`/`remGroup`/`needsDates`, `filteredTasks`/`taskMatch`, `swatches`/`nextColor`, `aiApply` doğrulama kalıbı ve `aiUndo`, `resolveModel`/`aiHeaders`.
+
+## Kritik dosyalar
+`public/app.js` → `public/js/**`; `public/index.html` + `public/partials/*`; `public/style.css` → `public/css/*`; `server.js` → `lib/*`; `extract.js` → `lib/extract.js`; `tools/demo-veri.js` (ekip/çalışan + çoklu atama); `README.md`, `CLAUDE.md`, `PLAN.md`.
+
+## Checklist (PLAN.md'ye eklenecek)
+- [x] 0. Plan PLAN.md'ye eklendi
+- [x] 1. Modüller: istemci `public/js/`, partials + sunucu birleştirme, `public/css/`, sunucu `lib/`; gerileme testi öncesi ve sonrası aynı sonucu veriyor
+- [ ] 2. Masonry kart düzeni, seçim kutusu sağa taşındı, dikey gezinme menüsü
+- [ ] 3. Ekip/çalışan modeli, çoklu atama, göç, filtre/kart/mail/arşiv/AI uyarlaması, demo veri
+- [ ] 4. Aranabilir çoklu seçici; iş penceresi + kenar çubuğu (katlanır, arama, "daha fazla")
+- [ ] 5. Ayarlar: ekipler + çalışanlar, projeler (arama, filtre, sıralama)
+- [ ] 6. AI hatırlatma ve not araçları + Geri al
+- [ ] 7. Takvim (aylık + haftalık), filtreler, tıklama ve yeni iş
+- [ ] 8. README + CLAUDE.md; tam gerileme testi
+
+## Doğrulama
+Tüm testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome + CDP üzerinden yapılacak. JS hataları `Runtime.exceptionThrown` ile toplanacak, sonuçlar ekran görüntüsüyle doğrulanacak. Gerçek `data/` klasörüne dokunulmayacak.
+1. **Modüller:** bölmeden önce ve sonra demo veriyle `/api/state` ve tüm sayfaların ekran görüntüleri karşılaştırılacak. Eski gerileme senaryoları (arşiv, geri alma, AI + Geri al, içe/dışa aktarma, 409, yanlış Host/Origin → 403, XSS yükleri) çalıştırılacak. `partials` yol kaçışı (`..`) denenecek.
+2. **Arayüz:** 1400 / 900 / 600 px genişlikte kartlar arasındaki dikey boşluk ≤ 12 px olmalı. Seçim kutusunun hover öncesi ve sonrası başlığın `left` değeri, kartın iç kenarına eşit olmalı.
+3. **Veri modeli:** eski biçimde (`unit`) veri → açılış → kayıttan sonra `units[]` olmalı. Eski yedeği içe aktarma çalışmalı. Çalışan seçilince ekibi eklenmeli. Ekip silinince aktarma yapılmalı. Mailde tüm sorumlular yer almalı.
+4. **Seçiciler:** 40 ekip, 150 çalışan ve 60 projelik sentetik veri → kenar çubuğu ve modal taşmamalı, arama Türkçe harf duyarsız çalışmalı, klavye ile seçim yapılabilmeli. Ekran görüntüsü alınacak.
+5. **Ayarlar:** çalışan ekle/düzenle/pasif yap/sil + aktarma; proje araması.
+6. **AI:** sahte LLM sunucusu ile `create_reminders` → hatırlatma oluşmalı, Geri al ile kalkmalı; geçersiz tarih → `warning` dönmeli; şemada silme aracı olmamalı. Sentetik veriyle canlı model denemesi yapılacak.
+7. **Takvim:** ay ve hafta geçişleri; 3 haftaya yayılan işin çubuğu doğru bölünmeli; filtre takvime yansımalı; çift tıklamayla açılan modalda tarih dolu gelmeli; dar ekran görüntüsü alınacak.
+
+`server.js`/`lib/` değiştiği için her sunucu değişikliğinden sonra kullanıcıya `servis\servis-kur.bat` ile sunucuyu yeniden başlatması hatırlatılacak.

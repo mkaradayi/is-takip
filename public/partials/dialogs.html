@@ -1,0 +1,39 @@
+<!-- Onay penceresi, bildirim (toast), bağlantı hatası penceresi -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-head">
+      <div class="modal-title" id="confirmTitle">Emin misiniz?</div>
+    </div>
+    <div class="modal-body" style="max-height:none;">
+      <p id="confirmMessage" style="margin:0; font-size:13.5px; color:var(--text-soft); line-height:1.6;"></p>
+      <div class="field" id="confirmSelectWrap" style="display:none;">
+        <label for="confirmSelect" id="confirmSelectLabel">Aktarılacak yer</label>
+        <select id="confirmSelect"></select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="spacer"></div>
+      <button class="btn" id="confirmCancelBtn">Vazgeç</button>
+      <button class="btn btn-primary" id="confirmOkBtn">Onayla</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toastMsg">Kaydedildi</span>
+</div>
+
+<div class="overlay" id="fatalOverlay">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-head"><div class="modal-title">Sunucuya ulaşılamıyor</div></div>
+    <div class="modal-body" style="max-height:none;">
+      <p style="margin:0; font-size:13.5px; line-height:1.65; color:var(--text-soft);">
+        Veriler sunucudaki veritabanından okunuyor ama sunucu yanıt vermiyor.
+        Proje klasöründeki <b>servis\servis-kur.bat</b> dosyasını (veya <code>node server.js</code> komutunu) çalıştırıp "Tekrar Dene"ye basın.
+        Sunucu çalışmadan işlem yaparsanız hiçbir veri kaydedilmez, bu yüzden uygulama kilitli tutuluyor.
+      </p>
+    </div>
+    <div class="modal-foot"><div class="spacer"></div><button class="btn btn-primary" id="fatalRetry">Tekrar Dene</button></div>
+  </div>
+</div>

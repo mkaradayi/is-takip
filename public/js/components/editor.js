@@ -1,10 +1,9 @@
 /* İş Takip — bağımlılıksız zengin metin editörü ve HTML temizleyici.
-   window.RichEditor.sanitize(html)  → beyaz listeden geçmiş güvenli HTML
-   window.RichEditor.toPlain(html)   → düz metin (arama ve kart önizlemesi için)
-   window.RichEditor.fromPlain(text) → eski düz metin açıklamaları HTML'e çevirir
-   window.RichEditor.create(host, { onImage(file) → Promise<src>, onAttach() }) → { getHtml, setHtml, focus } */
-(function(){
-"use strict";
+   RichEditor.sanitize(html)  → beyaz listeden geçmiş güvenli HTML
+   RichEditor.toPlain(html)   → düz metin (arama ve kart önizlemesi için)
+   RichEditor.fromPlain(text) → eski düz metin açıklamaları HTML'e çevirir
+   RichEditor.create(host, { onImage(file) → Promise<src>, onAttach() }) → { getHtml, setHtml, focus } */
+export const RichEditor = (function(){
 
 /* İzinli etiketler; burada olmayanların kendisi atılır, içeriği korunur. */
 var ALLOWED = { P:1, DIV:1, BR:1, B:1, STRONG:1, I:1, EM:1, U:1, S:1, STRIKE:1, H3:1, H4:1, UL:1, OL:1, LI:1, BLOCKQUOTE:1, A:1, IMG:1,
@@ -176,5 +175,5 @@ function create(host, opts){
   };
 }
 
-window.RichEditor = { sanitize: sanitize, toPlain: toPlain, fromPlain: fromPlain, create: create };
+return { sanitize: sanitize, toPlain: toPlain, fromPlain: fromPlain, create: create };
 })();

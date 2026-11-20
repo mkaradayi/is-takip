@@ -1,0 +1,57 @@
+/* Tasarım değişkenleri (:root), temel öğeler ve uygulama iskeleti */
+:root{
+    --bg:#EEF1F6;
+    --bg-sidebar:#10131C;
+    --bg-sidebar-alt:#171B28;
+    --surface:#FFFFFF;
+    --surface-hover:#F5F8FB;
+    --border:#E1E6ED;
+    --border-soft:#EAEDF2;
+    --text:#1A2233;
+    --text-soft:#5B6472;
+    --text-faint:#8A93A3;
+    --text-invert:#EDEFF4;
+    --text-invert-soft:#8891A3;
+    --accent:#0E7C86;
+    --accent-strong:#0A5E66;
+    --accent-soft:#E1F1F0;
+    --danger:#E4572E;
+    --danger-soft:#FBE7E0;
+    --warn:#C9860B;
+    --warn-soft:#FCEECB;
+    --ok:#2E9E6D;
+    --ok-soft:#E1F4EB;
+    --neutral-soft:#EDEFF3;
+    --unit-oz:#7C4DFF;
+    --unit-oz-soft:#EFEBFF;
+    --unit-mimari:#0E7C86;
+    --unit-mimari-soft:#E1F1F0;
+    --unit-yonetim:#3E5C76;
+    --unit-yonetim-soft:#E7ECF1;
+    --unit-hazirlama:#B0812F;
+    --unit-hazirlama-soft:#F6EDDD;
+    --unit-diger:#6B7280;
+    --unit-diger-soft:#EBEDF1;
+    --font-display:'Space Grotesk', sans-serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+    --radius-sm:6px;
+    --radius:10px;
+    --radius-lg:14px;
+    --shadow-sm:0 1px 2px rgba(16,19,28,.05);
+    --shadow:0 1px 2px rgba(16,19,28,.06), 0 10px 28px -14px rgba(16,19,28,.22);
+    --shadow-lg:0 24px 60px -20px rgba(10,13,20,.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:var(--font-body);
+    background:var(--bg);
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--accent-soft); color:var(--accent-strong);}
+  button{font-family:inherit; cursor:pointer;}
+  input,textarea,select{font-family:inherit; font-size:14px;}
+
+  .app{ display:flex; min-height:100vh; }

@@ -1,0 +1,96 @@
+<!-- Projeler: liste ve proje detayı (notlar, işler, dosyalar, proje asistanı) -->
+<div id="projectsPage" style="display:none;">
+  <!-- Proje listesi -->
+  <div id="projListView">
+    <div class="archive-topbar">
+      <div class="topbar-row">
+        <h2 class="archive-heading">Projeler</h2>
+        <span class="rem-sub">Bir projeye tıklayın: notlar, dosyalar ve projenin işleri.</span>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-sm" id="btnProjManage" title="Proje ekle, yeniden adlandır, arşivle (Ayarlar)">Projeleri yönet</button>
+      </div>
+    </div>
+    <div class="archive-wrap">
+      <div class="proj-grid" id="projGrid"></div>
+      <div id="projArchivedWrap" style="display:none;">
+        <div class="rem-group-head proj-archived-head">Arşivlenmiş projeler</div>
+        <div class="proj-grid" id="projArchivedGrid"></div>
+      </div>
+      <div class="archive-empty" id="projEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+        <h3>Henüz proje yok</h3>
+        <p>Projeler Ayarlar sayfasından eklenir.</p>
+        <button type="button" class="btn btn-primary btn-sm" id="btnProjEmptyManage" style="margin-top:14px;">Ayarlar'a git</button>
+      </div>
+    </div>
+  </div>
+  <!-- Proje detayı -->
+  <div id="projDetailView" style="display:none;">
+    <div class="archive-topbar">
+      <div class="topbar-row">
+        <button type="button" class="btn btn-sm btn-ghost" id="btnProjBack" title="Proje listesine dön">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Projeler
+        </button>
+        <h2 class="archive-heading proj-title" id="projTitle"></h2>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-sm" id="btnProjBoard" title="Panoyu bu projeye filtreli açar">Panoda göster</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnNewPn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Yeni not
+        </button>
+      </div>
+    </div>
+    <div class="archive-wrap">
+      <div class="proj-detail">
+        <section class="proj-col-main">
+          <section class="proj-box pa-box" id="paBox">
+            <div class="proj-sec-head">
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
+                Proje asistanı
+              </h3>
+              <div class="spacer"></div>
+              <select id="paModel" class="pa-model" title="Model (pano asistanıyla ortak seçim)"></select>
+              <button type="button" class="btn btn-sm btn-ghost" id="paNew" title="Sohbeti temizle">Yeni sohbet</button>
+            </div>
+            <div class="pa-src"><span id="paSrcSummary"></span><button type="button" class="pa-link" id="paSrcToggle">Kaynakları seç</button></div>
+            <div class="pa-src-list" id="paSrcList" style="display:none;"></div>
+            <div class="pa-quick" id="paQuick">
+              <button type="button" class="tab-jump" data-pa-q="ozet">Özet çıkar</button>
+              <button type="button" class="tab-jump" data-pa-q="riskler">Açık konular / riskler</button>
+              <button type="button" class="tab-jump" data-pa-q="kararlar">Kararlar ve aksiyonlar</button>
+            </div>
+            <div class="pa-log" id="paLog" style="display:none;"></div>
+            <div class="pa-input-row">
+              <textarea id="paInput" rows="2" maxlength="4000" placeholder="Bu projeyle ilgili bir soru sorun… (Enter gönderir, Shift+Enter yeni satır)"></textarea>
+              <button type="button" class="btn btn-primary btn-sm" id="paSend">Sor</button>
+            </div>
+            <div class="ai-foot pa-foot" id="paFoot"></div>
+          </section>
+          <div class="proj-sec-head">
+            <h3>Notlar <span class="rem-group-count" id="pnCount">0</span></h3>
+            <div class="spacer"></div>
+            <div class="search-box proj-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="pnSearch" placeholder="Notlarda ara…" />
+            </div>
+          </div>
+          <div class="pn-list" id="pnList"></div>
+          <div class="note-empty pn-empty" id="pnEmpty"></div>
+        </section>
+        <aside class="proj-col-side">
+          <section class="proj-box">
+            <div class="proj-sec-head"><h3>İşler</h3></div>
+            <div class="proj-status-chips" id="projStatusChips"></div>
+            <div class="proj-tasks" id="projTasks"></div>
+          </section>
+          <section class="proj-box">
+            <div class="proj-sec-head"><h3>Dosyalar <span class="rem-group-count" id="projFileCount">0</span></h3></div>
+            <div class="proj-files" id="projFiles"></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>

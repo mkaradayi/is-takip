@@ -1,9 +1,8 @@
 /* İş Takip — AI model kaydı (Ayarlar → AI Modelleri) ve seçili model.
    Liste sunucuda (data/ai-models.json) tutulur; API anahtarları tarayıcıya hiç gelmez, yalnızca "hasKey" bilgisi gelir.
    Hangi modelin seçili olduğu bu tarayıcıda (localStorage) hatırlanır.
-   window.AiModels.init({ confirm, toast }) · list() · selected() · select(id) · onChange(fn) */
-(function(){
-"use strict";
+   AiModels.init({ confirm, toast }) · list() · selected() · select(id) · onChange(fn) */
+export const AiModels = (function(){
 
 var PREF = "isTakip.aiModel";
 var models = [], listeners = [], editing = null, B = null, loaded = false;
@@ -187,5 +186,5 @@ function init(bridge){
   load();
 }
 
-window.AiModels = { init: init, list: list, selected: selected, select: select, onChange: onChange, reload: load };
+return { init: init, list: list, selected: selected, select: select, onChange: onChange, reload: load };
 })();
