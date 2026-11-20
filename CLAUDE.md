@@ -3,7 +3,7 @@
 Yerel çalışan, **bağımlılıksız** bir kanban iş takip uygulaması: Node.js sunucusu (yalnızca yerleşik modüller, veri `node:sqlite` ile SQLite'ta) + vanilla JS arayüz. Kullanıcı Windows'ta, arayüz ve kod yorumları **Türkçe**. Kullanıcıya Türkçe yanıt verin.
 
 - Çalıştırma: Windows'ta `servis/servis-kur.bat` (Görev Zamanlayıcı ile penceresiz otomatik başlatma; kurar, başlatır, tarayıcıyı açar) ya da elle `node server.js` → http://localhost:3000. **Node ≥ 22.13** gerekir (yerleşik SQLite). Kullanıcı servisi kullanıyor; sunucu penceresizdir. (`baslat.bat` kullanıcı isteğiyle kaldırıldı.)
-- **Git deposu var** (`main`, uzak sunucu yok), ama commit/push yalnızca kullanıcı isterse. **`data/` git'e girmez** (`.gitignore`; kullanıcı kararı): veritabanı, ekler, yedekler ve model anahtarları yalnızca diskte. Verinin yedeği git değil, `data/backup/` ve JSON dışa aktarmadır. (İlk iki commit'in geçmişinde eski veri hâlâ duruyor.) Değişiklik geçmişi bu dosyanın sonunda.
+- **Git deposu var** (`main`, uzak: GitHub `origin`), ama commit/push yalnızca kullanıcı isterse. **`data/` git'e girmez** (`.gitignore`; kullanıcı kararı): veritabanı, ekler, yedekler ve model anahtarları yalnızca diskte. Verinin yedeği git değil, `data/backup/` ve JSON dışa aktarmadır. Git geçmişinde veri dosyası yok. Değişiklik geçmişi bu dosyanın sonunda.
 - Son kullanıcı belgesi: [README.md](README.md). Planlar ve checklist'ler: [PLAN.md](PLAN.md) (en sondaki "11 Yeni İstek Planı" en güncelidir).
 
 ## Değişmez ilkeler (bunları bozmayın)
