@@ -12,14 +12,14 @@ export function renderSaveStatus(){
   var el = $("saveStatus"); if(!el) return;
   var s = Storage.getStatus(), cls = "", text = "Hazır", extra = "";
   if(s === "saving"){ cls = "st-saving"; text = "Kaydediliyor…"; }
-  else if(s === "saved"){ cls = "st-saved"; text = "Dosyaya kaydedildi · " + Storage.getSavedAt(); }
+  else if(s === "saved"){ cls = "st-saved"; text = "Kaydedildi · " + Storage.getSavedAt(); }
   else if(s === "error"){
     cls = "st-error"; text = "Kaydedilemedi: " + Storage.getError();
     extra = Storage.hasConflict()
       ? '<button type="button" class="status-retry" data-reload="1">Sayfayı yenile</button>'
       : '<button type="button" class="status-retry" data-retry="1">Tekrar dene</button>';
   }
-  else { cls = "st-saved"; text = "Dosyadan yüklendi"; }
+  else { cls = "st-saved"; text = "Sunucudan yüklendi"; }   // veri sunucudaki veritabanından (GET /api/state) okunur
   el.className = "save-status " + cls;
   el.innerHTML = '<span class="status-dot"></span><span>' + esc(text) + '</span>' + extra;
 }

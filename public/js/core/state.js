@@ -21,7 +21,7 @@ export var state = {
   alertsOpen: pref(PREF_ALERTS_OPEN) === "1", alertExpanded: {}
 };
 
-/* Dosyadan/yedekten gelen değerler HTML attribute'larına gömüldüğü için kimlik ve renkler burada doğrulanır. */
+/* Sunucudan/yedekten gelen değerler HTML attribute'larına gömüldüğü için kimlik ve renkler burada doğrulanır. */
 export var SAFE_ID = /^[\w-]{1,64}$/, HEX_COLOR = /^#[0-9a-f]{6}$/i, ISO_DAY = /^\d{4}-\d{2}-\d{2}/;
 export function safeId(v){ return typeof v === "string" && SAFE_ID.test(v) ? v : ""; }
 export function str(v){ return v == null ? "" : String(v); }

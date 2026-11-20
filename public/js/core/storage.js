@@ -102,7 +102,7 @@ export var Storage = (function(){
 export function commit(kinds, doneText){
   renderAll();
   Storage.save(kinds).then(function(ok){
-    if(ok) toast(doneText + " ve dosyaya kaydedildi");
+    if(ok) toast(doneText + " ve kaydedildi");
     else toast(doneText + " ama DOSYAYA YAZILAMADI: " + Storage.getError() + " — sunucunun çalıştığını kontrol edin", true);
   });
 }
