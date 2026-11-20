@@ -604,7 +604,7 @@ Bütün testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome 
 ## Checklist (PLAN.md'ye eklenecek)
 - [x] 0. Plan PLAN.md'ye eklendi
 - [x] 1. Modüller: istemci `public/js/`, partials + sunucu birleştirme, `public/css/`, sunucu `lib/`; gerileme testi öncesi ve sonrası aynı sonucu veriyor
-- [ ] 2. Masonry kart düzeni, seçim kutusu sağa taşındı, dikey gezinme menüsü
+- [x] 2. Masonry kart düzeni, seçim kutusu sağa taşındı, dikey gezinme menüsü
 - [ ] 3. Ekip/çalışan modeli, çoklu atama, göç, filtre/kart/mail/arşiv/AI uyarlaması, demo veri
 - [ ] 4. Aranabilir çoklu seçici; iş penceresi + kenar çubuğu (katlanır, arama, "daha fazla")
 - [ ] 5. Ayarlar: ekipler + çalışanlar, projeler (arama, filtre, sıralama)

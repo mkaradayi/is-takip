@@ -114,6 +114,9 @@
   .tab-toolbar-count b{ color:var(--text); font-weight:700; }
   .tab-toolbar-hint{ font-size:11.5px; color:var(--text-faint); }
   .tab-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; align-items:start; }
+  /* Masonry (board.js → layoutMasonry): kartlar en kısa sütuna yerleşir, alt alta kartlar arasında boşluk kalmaz */
+  .tab-grid.masonry{ display:flex; align-items:flex-start; }
+  .tab-col{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:12px; }
   .tab-empty{
     font-size:13px; color:var(--text-soft); text-align:center; padding:40px 16px; border:1.5px dashed var(--border);
     border-radius:var(--radius-lg); background:rgba(255,255,255,.5);
@@ -174,7 +177,7 @@
     background:var(--surface); color:transparent; display:flex; align-items:center; justify-content:center;
     opacity:0; pointer-events:none; transition:opacity .15s ease, border-color .12s ease, background .12s ease;
   }
-  .card-check{ margin:1px 0 0; }
+  .card-check{ margin:0; }   /* başlığın sağında, arşiv/sil ikonlarının yanında: başlık kartın sol kenarıyla hizalı */
   .card-check svg, .col-check svg{ width:11px; height:11px; stroke-width:3; }
   .card:hover .card-check, .card:focus-within .card-check, .board.selecting .card-check{ opacity:1; pointer-events:auto; }
   .card-check:focus-visible, .col-check:focus-visible{ opacity:1; pointer-events:auto; }

@@ -5,6 +5,9 @@
     .sidebar{ width:100%; flex-direction:row; align-items:center; flex-wrap:wrap; padding:14px 16px; gap:10px 18px; }
     .brand{ border:none; padding:0; margin:0; }
     .side-section{ margin-bottom:0; }
+    .view-switch{ flex-direction:row; flex-wrap:wrap; gap:4px; margin-bottom:0; }
+    .view-tab{ width:auto; padding:7px 10px; }
+    .view-tab.active::before{ display:none; }
     .sidebar-footer{ margin-top:0; padding-top:0; border:none; display:flex; gap:4px; }
     .storage-note{ display:none; }
     .save-status{ display:none; }

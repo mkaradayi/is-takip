@@ -74,8 +74,8 @@ export function cardHtml(t){
     (t.notes.length > 1 ? '<span class="note-count">+' + (t.notes.length - 1) + '</span>' : "") + '</div>' : "";
   return '<div class="card' + (sel ? " selected" : "") + '" draggable="true" data-id="' + t.id + '">' +
     '<div class="card-top">' +
-      '<button type="button" class="card-check' + (sel ? " on" : "") + '" data-check="' + t.id + '" title="Mail için seç" aria-label="Mail için seç" aria-pressed="' + sel + '">' + ICON.check + '</button>' +
       '<div class="card-title">' + esc(t.title) + '</div>' + prioFlag(t) +
+      '<button type="button" class="card-check' + (sel ? " on" : "") + '" data-check="' + t.id + '" title="Mail için seç" aria-label="Mail için seç" aria-pressed="' + sel + '">' + ICON.check + '</button>' +
       '<button type="button" class="card-archive" data-archive="' + t.id + '" title="Arşivle" aria-label="Arşivle">' + ICON.archive + '</button>' +
       '<button type="button" class="card-del" data-del="' + t.id + '" title="İşi sil" aria-label="İşi sil">' + ICON.trash + '</button></div>' +
     (t.description ? '<div class="card-desc">' + esc(t.description) + '</div>' : "") + note +
@@ -123,6 +123,50 @@ export function renderBoard(){
       }).join("") + '</div>' : "") + '</div>';
   }
   board.innerHTML = bar + body;
+  layoutMasonry();
+}
+
+/* Masonry: CSS ızgarası bir satırdaki en uzun kart kadar yer ayırdığı için kısa kartların altında boşluk kalıyordu.
+   Kartlar önce ızgaraya basılır; ızgaranın hesapladığı sütun sayısı ve kartların gerçek yükseklikleri ölçülür,
+   sonra her kart (sıra korunarak) en kısa sütuna taşınır. Sütun genişliği ızgarayla aynı olduğu için ölçüm doğrudur.
+   Pano görünmüyorsa (başka sayfa açık) ızgara olduğu gibi kalır; görünür olunca ResizeObserver yeniden dizer. */
+var GRID_GAP = 12, masonryCols = 0;
+function gridColumnCount(grid){
+  var cols = getComputedStyle(grid).gridTemplateColumns;
+  return cols && cols !== "none" ? cols.split(" ").length : 0;
+}
+export function layoutMasonry(){
+  var grid = document.querySelector("#board .tab-grid");
+  masonryCols = 0;
+  if(!grid || !grid.offsetWidth) return;
+  var n = gridColumnCount(grid);
+  masonryCols = n;
+  if(n < 2) return;
+  var cards = Array.prototype.slice.call(grid.children);
+  var heights = cards.map(function(c){ return c.offsetHeight; });
+  var cols = [], sums = [];
+  for(var i = 0; i < n; i++){ var col = document.createElement("div"); col.className = "tab-col"; cols.push(col); sums.push(0); }
+  cards.forEach(function(card, k){
+    var j = sums.indexOf(Math.min.apply(null, sums));
+    cols[j].appendChild(card); sums[j] += heights[k] + GRID_GAP;
+  });
+  grid.classList.add("masonry");
+  cols.forEach(function(col){ grid.appendChild(col); });
+}
+/* Genişlik değişip sütun sayısı değişirse (ya da pano görünür olursa) yeniden diz */
+function watchMasonry(){
+  var pending = false;
+  var check = function(){
+    pending = false;
+    var grid = document.querySelector("#board .tab-grid");
+    if(!grid || !grid.offsetWidth) return;
+    var probe = document.createElement("div"); probe.className = "tab-grid"; probe.style.cssText = "visibility:hidden;height:0;overflow:hidden;";
+    grid.parentNode.insertBefore(probe, grid);
+    var n = gridColumnCount(probe); probe.remove();
+    if(n !== masonryCols) renderBoard();
+  };
+  if(window.ResizeObserver) new ResizeObserver(function(){ if(!pending){ pending = true; requestAnimationFrame(check); } }).observe($("board"));
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ if($("board").offsetWidth) renderBoard(); });   // yazı tipi yüklenince yükseklikler değişir
 }
 
 export function renderSelectBar(){
@@ -136,6 +180,7 @@ export function renderSelectBar(){
 
 /* Olay bağlama (main.js → bind) */
 export function bindBoard(){
+  watchMasonry();
   /* Durum sekmeleri: tıklayınca sekme değişir; sürüklenen kart bir sekmeye bırakılınca durumu değişir */
   var tabs = $("pipeline");
   tabs.onclick = function(e){ var b = e.target.closest("[data-status]"); if(b) setStatusTab(b.getAttribute("data-status")); };
