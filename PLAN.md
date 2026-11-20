@@ -608,7 +608,7 @@ Bütün testler `DATA_DIR=<scratchpad>/testdata PORT=3917` ile, headless Chrome 
 - [x] 3. Ekip/çalışan modeli, çoklu atama, göç, filtre/kart/mail/arşiv/AI uyarlaması, demo veri
 - [x] 4. Aranabilir çoklu seçici (bileşen ve iş penceresindeki sorumlular 3. maddede yapıldı); iş penceresinde proje seçimi + kenar çubuğu (katlanır, arama, "daha fazla")
 - [x] 5. Ayarlar: ekipler + çalışanlar, projeler (arama, filtre, sıralama)
-- [ ] 6. AI hatırlatma ve not araçları + Geri al
+- [x] 6. AI hatırlatma ve not araçları + Geri al
 - [ ] 7. Takvim (aylık + haftalık), filtreler, tıklama ve yeni iş
 - [ ] 8. README + CLAUDE.md; tam gerileme testi
 

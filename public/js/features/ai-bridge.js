@@ -6,11 +6,12 @@ import { PRIORITIES, PRIO_MAP, STATUSES, STATUS_MAP } from "../core/config.js";
 import { latestNotes, needsDates, searchKey, urgency, urgencyGroup } from "../core/domain.js";
 import { anyOverlayOpen } from "../core/overlays.js";
 import { switchView } from "../core/render.js";
-import { MEMBER_MAP, UNIT_MAP, assigneeText, findTask, fixAssignees, getMember, getProject, getUnit, normalizeNote, normalizeTask, state, str } from "../core/state.js";
+import { MEMBER_MAP, TIME_RE, UNIT_MAP, assigneeText, findArchived, findMemo, findReminder, findTask, fixAssignees, getMember, getProject, getUnit, normalizeMemo, normalizeNote, normalizeReminder, normalizeTask, state, str } from "../core/state.js";
 import { commit } from "../core/storage.js";
 import { showConfirm, toast } from "../core/ui.js";
 import { $, daysBetween, fmtDate, todayISO, trToISO, uid } from "../core/utils.js";
 import { openModal } from "../modals/task-modal.js";
+import { remGroup, remSort, remWhen } from "../views/reminders.js";
 
 /* components/ai-chat.js araç çağrılarını buradan uygular.
    Her değişiklik elle yapılanla aynı yoldan geçer: doğrula → state → commit (çakışma kontrolü dahil). */
@@ -22,6 +23,12 @@ export function aiBoardSnapshot(){
     projects: state.projects.map(function(p){ return { id: p.id, name: p.name, status: p.status }; }),
     statuses: STATUSES.map(function(x){ return { id: x.id, name: x.name }; }),
     priorities: PRIORITIES.map(function(x){ return { id: x.id, name: x.name }; }),
+    /* açık hatırlatmalar (en yakın 20) ve not sayısı; notların metni gönderilmez (gerekirse list_memos) */
+    reminderCount: state.reminders.filter(function(r){ return !r.done; }).length,
+    reminders: state.reminders.filter(function(r){ return !r.done; }).sort(remSort).slice(0, 20).map(function(r){
+      return { id: r.id, text: r.text.slice(0, 120), date: r.date, time: r.time, taskId: r.taskId, when: remWhen(r) };
+    }),
+    memoCount: state.memos.length,
     tasks: state.tasks.map(function(t){
       var n = latestNotes(t, 1)[0];
       return { id: t.id, title: t.title, status: t.status, units: t.units, members: t.members, priority: t.priority, projectId: t.projectId,
@@ -111,10 +118,11 @@ export function aiDateRule(status, start, due){
 }
 
 export function aiApply(calls){
-  var res = { results: [], summary: { created: [], updated: [], moved: [], skipped: [] }, token: null };
-  var before = {}, created = [];
+  var res = { results: [], summary: { created: [], updated: [], moved: [], skipped: [], reminders: [], memos: [] }, token: null };
+  /* geri alma kaydı tür başına: değişmeden önceki kopya + oluşturulanların id'leri */
+  var before = { tasks: {}, reminders: {}, memos: {} }, created = { tasks: [], reminders: [], memos: [] };
   var locked = anyOverlayOpen();
-  var remember = function(t){ if(!(t.id in before) && created.indexOf(t.id) === -1) before[t.id] = clone(t); };
+  var remember = function(t, kind){ kind = kind || "tasks"; if(!(t.id in before[kind]) && created[kind].indexOf(t.id) === -1) before[kind][t.id] = clone(t); };
   var label = function(t){ return '"' + t.title + '"'; };
 
   (calls || []).forEach(function(call){
@@ -127,6 +135,10 @@ export function aiApply(calls){
       res.results.push({ tool_call_id: call.id, content: JSON.stringify(aiListTasks(args)) });
       return;
     }
+    if(name === "list_reminders" || name === "list_memos"){
+      res.results.push({ tool_call_id: call.id, content: JSON.stringify(name === "list_reminders" ? aiListReminders(args) : aiListMemos(args)) });
+      return;
+    }
     if(name === "get_task"){
       var g = findTask(str(args.id));
       res.results.push({ tool_call_id: call.id, content: JSON.stringify(g ? {
@@ -134,6 +146,10 @@ export function aiApply(calls){
         startDate: g.startDate, dueDate: g.dueDate, createdAt: g.createdAt, description: g.description,
         notes: g.notes.map(function(n){ return { date: n.date, text: n.text }; }), attachments: g.attachments.map(function(a){ return a.name; })
       } : { error: "Bu id ile aktif iş yok" }) });
+      return;
+    }
+    if((/reminders$/.test(name) && state.remEditing) || (/memos$/.test(name) && state.memoEditing)){
+      res.results.push({ tool_call_id: call.id, content: JSON.stringify({ error: "Kullanıcı şu anda bir " + (/memos$/.test(name) ? "notu" : "hatırlatmayı") + " düzenliyor. Değişiklik yapılmadı; düzenlemeyi bitirmesini isteyip sonra tekrar dene." }) });
       return;
     }
     if(locked){
@@ -162,7 +178,7 @@ export function aiApply(calls){
         var t = normalizeTask({ id: uid(), title: title, units: asg.units, members: asg.members, priority: prio, status: status, projectId: pid,
           startDate: start || "", dueDate: due || "", createdAt: todayISO(), updatedAt: todayISO(),
           descriptionHtml: RichEditor.fromPlain(str(it.description)), notes: it.note && str(it.note).trim() ? [aiNote(it.note)] : [] });
-        state.tasks.push(t); created.push(t.id);
+        state.tasks.push(t); created.tasks.push(t.id);
         ok.push({ id: t.id, title: t.title }); res.summary.created.push({ id: t.id, title: t.title });
       });
     }
@@ -209,6 +225,9 @@ export function aiApply(calls){
         ok.push({ id: t.id, title: t.title, status: STATUS_MAP[st].name }); res.summary.moved.push({ id: t.id, title: t.title, status: STATUS_MAP[st].name });
       });
     }
+    else if(name === "create_reminders" || name === "update_reminders" || name === "create_memos" || name === "update_memos"){
+      aiApplyPersonal(name, args, { ok: ok, skip: skip, remember: remember, created: created, summary: res.summary });
+    }
     else {
       res.results.push({ tool_call_id: call.id, content: JSON.stringify({ error: "Bilinmeyen araç: " + name }) });
       return;
@@ -220,34 +239,169 @@ export function aiApply(calls){
   });
 
   var s = res.summary, parts = [];
+  var count = function(list, action){ return list.filter(function(x){ return x.action === action; }).length; };
   if(s.created.length) parts.push(s.created.length + " iş oluşturuldu");
   if(s.updated.length) parts.push(s.updated.length + " iş güncellendi");
   if(s.moved.length) parts.push(s.moved.length + " iş taşındı");
+  if(count(s.reminders, "created")) parts.push(count(s.reminders, "created") + " hatırlatma eklendi");
+  if(count(s.reminders, "updated")) parts.push(count(s.reminders, "updated") + " hatırlatma güncellendi");
+  if(count(s.memos, "created")) parts.push(count(s.memos, "created") + " not eklendi");
+  if(count(s.memos, "updated")) parts.push(count(s.memos, "updated") + " not güncellendi");
   if(parts.length){
+    var kinds = ["tasks", "reminders", "memos"].filter(function(k){ return created[k].length || Object.keys(before[k]).length; });
     res.token = "u" + uid();
-    aiUndoLog[res.token] = { before: before, created: created };
-    commit(["tasks"], "AI: " + parts.join(", "));
+    aiUndoLog[res.token] = { before: before, created: created, kinds: kinds };
+    commit(kinds, "AI: " + parts.join(", "));
   }
   s.text = parts.join(" · ");
   return res;
 }
 
-/* Bir AI adımını geri alır: oluşturulanları kaldırır, değişenleri önceki haline döndürür. Diğer işlere dokunmaz. */
+/* ---------- Hatırlatmalar ve Notlarım (silme yok) ---------- */
+/* undefined: gönderilmedi · "": temizle · "HH:MM": geçerli · null: geçersiz */
+export function aiTime(v){
+  if(v === undefined || v === null) return undefined;
+  v = str(v).trim();
+  if(!v) return "";
+  if(/^\d:\d\d$/.test(v)) v = "0" + v;
+  return TIME_RE.test(v) ? v : null;
+}
+/* İş bağlantısı: "" bağlantıyı kaldırır; yalnızca panodaki aktif işlere bağlanır. null: geçersiz */
+export function aiTaskRef(v){
+  if(v === undefined || v === null) return undefined;
+  v = str(v).trim();
+  if(!v) return "";
+  return findTask(v) ? v : null;
+}
+function remInfo(r){
+  var t = r.taskId ? findTask(r.taskId) || findArchived(r.taskId) : null;
+  return { id: r.id, text: r.text.slice(0, 300), date: r.date, time: r.time, when: remWhen(r), done: r.done, task: t ? t.title : "" };
+}
+export function aiListReminders(a){
+  var st = str(a.status) || "open", q = searchKey(str(a.query).trim()), g = str(a.group), tid = str(a.taskId);
+  var list = state.reminders.filter(function(r){
+    if(st === "open" && r.done) return false;
+    if(st === "done" && !r.done) return false;
+    if(g && remGroup(r) !== g) return false;
+    if(tid && r.taskId !== tid) return false;
+    if(q && searchKey(r.text).indexOf(q) === -1) return false;
+    return true;
+  }).sort(remSort);
+  return { count: list.length, reminders: list.slice(0, 100).map(remInfo) };
+}
+export function aiListMemos(a){
+  var q = searchKey(str(a.query).trim()), tid = str(a.taskId), lim = Math.max(1, Math.min(50, +a.limit || 20));
+  var list = state.memos.filter(function(m){
+    if(tid && m.taskId !== tid) return false;
+    if(q && searchKey(m.text).indexOf(q) === -1) return false;
+    return true;
+  }).sort(function(x, y){ return y.updatedAt.localeCompare(x.updatedAt); });
+  return { count: list.length, memos: list.slice(0, lim).map(function(m){
+    var t = m.taskId ? findTask(m.taskId) || findArchived(m.taskId) : null;
+    return { id: m.id, text: m.text.slice(0, 500) + (m.text.length > 500 ? "…" : ""), task: t ? t.title : "", updated: m.updatedAt.slice(0, 10) };
+  }) };
+}
+/* create/update_reminders, create/update_memos: öğe öğe doğrular; geçerliler state'e yazılır (commit aiApply'da, tek seferde) */
+function aiApplyPersonal(name, args, x){
+  var now = new Date().toISOString();
+  var short = function(t){ t = str(t).trim().split("\n")[0]; return '"' + (t.length > 60 ? t.slice(0, 60) + "…" : t) + '"'; };
+  if(name === "create_reminders"){
+    (Array.isArray(args.reminders) ? args.reminders : []).forEach(function(it, i){
+      it = it || {};
+      var text = str(it.text).trim().slice(0, 2000), who = text ? short(text) : "hatırlatma #" + (i + 1);
+      if(!text) return x.skip(who, "metin boş");
+      var date = aiDate(it.date);
+      if(date === null) return x.skip(who, "tarih geçersiz (YYYY-AA-GG olmalı)");
+      if(!date) return x.skip(who, "tarih gerekli; kullanıcıya sor, uydurma");
+      var time = aiTime(it.time);
+      if(time === null) return x.skip(who, "saat geçersiz (SS:DD olmalı)");
+      var tid = aiTaskRef(it.taskId);
+      if(tid === null) return x.skip(who, "bağlanacak aktif iş bulunamadı (" + str(it.taskId) + ")");
+      var r = normalizeReminder({ id: uid(), text: text, date: date, time: time || "", taskId: tid || "", done: false, doneAt: "", createdAt: now });
+      state.reminders.push(r); x.created.reminders.push(r.id);
+      /* ok listesinde id yok: model yanıtında kimlik tekrarlamasın (gerekirse list_reminders / list_memos ile bulur) */
+      x.ok.push({ text: r.text.slice(0, 80), when: remWhen(r) });
+      x.summary.reminders.push({ id: r.id, text: r.text, when: remWhen(r), action: "created" });
+    });
+  }
+  else if(name === "update_reminders"){
+    (Array.isArray(args.updates) ? args.updates : []).forEach(function(u){
+      u = u || {};
+      var r = findReminder(str(u.id));
+      if(!r) return x.skip(str(u.id) || "(id yok)", "hatırlatma bulunamadı");
+      var who = short(r.text);
+      if(u.text !== undefined && !str(u.text).trim()) return x.skip(who, "metin boş olamaz");
+      var date = aiDate(u.date);
+      if(date === null) return x.skip(who, "tarih geçersiz (YYYY-AA-GG olmalı)");
+      if(date === "") return x.skip(who, "hatırlatmanın tarihi silinemez");
+      var time = aiTime(u.time);
+      if(time === null) return x.skip(who, "saat geçersiz (SS:DD olmalı)");
+      var tid = aiTaskRef(u.taskId);
+      if(tid === null) return x.skip(who, "bağlanacak aktif iş bulunamadı (" + str(u.taskId) + ")");
+      var done = u.done === undefined ? undefined : (u.done === true || u.done === "true");
+      x.remember(r, "reminders");
+      if(u.text !== undefined) r.text = str(u.text).trim().slice(0, 2000);
+      if(date !== undefined) r.date = date;
+      if(time !== undefined) r.time = time;
+      if(tid !== undefined) r.taskId = tid;
+      if(done !== undefined && done !== r.done){ r.done = done; r.doneAt = done ? now : ""; }
+      x.ok.push({ text: r.text.slice(0, 80), when: remWhen(r), done: r.done });
+      x.summary.reminders.push({ id: r.id, text: r.text, when: remWhen(r) + (r.done ? " · tamamlandı" : ""), action: "updated" });
+    });
+  }
+  else if(name === "create_memos"){
+    (Array.isArray(args.memos) ? args.memos : []).forEach(function(it, i){
+      it = it || {};
+      var text = str(it.text).trim().slice(0, 5000), who = text ? short(text) : "not #" + (i + 1);
+      if(!text) return x.skip(who, "metin boş");
+      var tid = aiTaskRef(it.taskId);
+      if(tid === null) return x.skip(who, "bağlanacak aktif iş bulunamadı (" + str(it.taskId) + ")");
+      var m = normalizeMemo({ id: uid(), text: text, taskId: tid || "", createdAt: now, updatedAt: now });
+      state.memos.push(m); x.created.memos.push(m.id);
+      x.ok.push({ text: m.text.slice(0, 80) });
+      x.summary.memos.push({ id: m.id, text: m.text, action: "created" });
+    });
+  }
+  else if(name === "update_memos"){
+    (Array.isArray(args.updates) ? args.updates : []).forEach(function(u){
+      u = u || {};
+      var m = findMemo(str(u.id));
+      if(!m) return x.skip(str(u.id) || "(id yok)", "not bulunamadı");
+      var who = short(m.text);
+      if(u.text !== undefined && !str(u.text).trim()) return x.skip(who, "metin boş olamaz");
+      var tid = aiTaskRef(u.taskId);
+      if(tid === null) return x.skip(who, "bağlanacak aktif iş bulunamadı (" + str(u.taskId) + ")");
+      var text = u.text !== undefined ? str(u.text).trim().slice(0, 5000) : m.text;
+      if(text === m.text && (tid === undefined || tid === m.taskId)) return x.skip(who, "değişiklik yok");
+      x.remember(m, "memos");
+      m.text = text; if(tid !== undefined) m.taskId = tid; m.updatedAt = now;
+      x.ok.push({ text: m.text.slice(0, 80) });
+      x.summary.memos.push({ id: m.id, text: m.text, action: "updated" });
+    });
+  }
+}
+
+/* Bir AI adımını geri alır: oluşturulanları kaldırır, değişenleri önceki haline döndürür (iş, hatırlatma, not) */
+var UNDO_FIND = { tasks: findTask, reminders: findReminder, memos: findMemo };
 export function aiUndo(token){
   var u = aiUndoLog[token];
   if(!u) return { ok: false, error: "Bu adım zaten geri alınmış" };
   if(anyOverlayOpen()) return { ok: false, error: "Önce açık pencereyi kapatın" };
+  if((u.kinds.indexOf("reminders") !== -1 && state.remEditing) || (u.kinds.indexOf("memos") !== -1 && state.memoEditing)) return { ok: false, error: "Önce açık düzenlemeyi bitirin" };
   var missing = 0;
-  u.created.forEach(function(id){ if(!findTask(id)) missing++; });
-  state.tasks = state.tasks.filter(function(t){ return u.created.indexOf(t.id) === -1; });
-  Object.keys(u.before).forEach(function(id){
-    var t = findTask(id);
-    if(!t){ missing++; return; }
-    Object.keys(t).forEach(function(k){ delete t[k]; });
-    Object.assign(t, clone(u.before[id]));
+  u.kinds.forEach(function(k){
+    var find = UNDO_FIND[k];
+    u.created[k].forEach(function(id){ if(!find(id)) missing++; });
+    state[k] = state[k].filter(function(x){ return u.created[k].indexOf(x.id) === -1; });
+    Object.keys(u.before[k]).forEach(function(id){
+      var x = find(id);
+      if(!x){ missing++; return; }
+      Object.keys(x).forEach(function(key){ delete x[key]; });
+      Object.assign(x, clone(u.before[k][id]));
+    });
   });
   delete aiUndoLog[token];
-  commit(["tasks"], "AI değişikliği geri alındı");
+  commit(u.kinds, "AI değişikliği geri alındı");
   return { ok: true, missing: missing };
 }
 
@@ -259,6 +413,7 @@ export function bindAiBridge(){
     getBoard: aiBoardSnapshot,
     applyTools: aiApply,
     undo: aiUndo,
+    openView: function(v){ switchView(v); },
     openTask: function(id){
       if(!findTask(id)) return toast("Bu iş artık panoda değil", true);
       if(state.view !== "board") switchView("board");

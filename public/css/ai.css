@@ -65,3 +65,6 @@
   .ai-send.stop .i-stop{ display:block; }
   .ai-send.stop{ background:var(--text); }
   .ai-foot{ font-size:10.5px; color:var(--text-faint); padding:0 14px 10px; }
+  .ai-personal{ display:flex; align-items:center; gap:6px; }
+  .ai-personal svg{ width:12px; height:12px; flex-shrink:0; color:#7C4DFF; }
+  .ai-personal-text{ color:var(--accent-strong) !important; font-weight:600 !important; }

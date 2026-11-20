@@ -2,7 +2,7 @@
    Sunucu (/api/ai/chat) yalnızca OpenRouter'a aracılık eder; modelin istediği araçları (kart oluştur/düzenle/taşı)
    features/ai-bridge.js köprüsü çalıştırır, sonuçlar "tool" mesajı olarak modele geri gönderilir.
    Sohbet yalnızca bellekte tutulur; sayfa yenilenince sıfırlanır.
-   AiChat.init({ getBoard, applyTools, undo, openTask }) */
+   AiChat.init({ getBoard, applyTools, undo, openTask, openView }) */
 import { AiModels } from "./ai-models.js";
 
 export const AiChat = (function(){
@@ -10,7 +10,7 @@ export const AiChat = (function(){
 var MAX_ROUNDS = 6;          // bir kullanıcı mesajı için en fazla model ↔ araç turu
 var MAX_SEND = 30;           // modele gönderilen en fazla geçmiş mesaj
 var PREF_OPEN = "isTakip.aiOpen";
-var EXAMPLES = ["Gecikmiş işleri listele", "Yarın bitecek kritik bir iş ekle", "Devam eden işlerin önceliğini yükselt"];
+var EXAMPLES = ["Gecikmiş işleri listele", "Yarın bitecek kritik bir iş ekle", "Yarın 10:00 için bir hatırlatma ekle", "Notlarımda bütçe geçenleri bul"];
 
 var B = null;                // features/ai-bridge.js köprüsü (init ile verilir)
 var history = [];            // modele giden mesajlar (user / assistant / tool)
@@ -53,6 +53,16 @@ function taskLinks(list, withStatus){
       (withStatus && t.status ? ' <span>→ ' + esc(t.status) + '</span>' : "") + '</button>';
   }).join("");
 }
+var I_BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+var I_NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13l3 3v13H4z"/><path d="M8 9h9M8 13h9M8 17h5"/></svg>';
+/* Hatırlatma / not satırları: tıklayınca ilgili sayfa açılır */
+function personalLinks(list, view, icon){
+  return list.map(function(x){
+    var t = String(x.text || "").split("\n")[0];
+    return '<button type="button" class="ai-task-link ai-personal" data-ai-goto="' + view + '">' + icon + '<span class="ai-personal-text">' + esc(t.length > 80 ? t.slice(0, 80) + "…" : t) + '</span>' +
+      (x.when ? ' <span>' + esc(x.when) + '</span>' : "") + '</button>';
+  }).join("");
+}
 function actionHtml(it){
   var s = it.summary, none = !s.text;
   var h = '<div class="ai-action' + (it.undone ? " undone" : "") + (none ? " failed" : "") + '">';
@@ -62,6 +72,12 @@ function actionHtml(it){
   if(s.created.length) h += '<div class="ai-action-group"><div class="ai-action-label">Oluşturulan</div>' + taskLinks(s.created) + '</div>';
   if(s.updated.length) h += '<div class="ai-action-group"><div class="ai-action-label">Güncellenen</div>' + taskLinks(s.updated) + '</div>';
   if(s.moved.length) h += '<div class="ai-action-group"><div class="ai-action-label">Taşınan</div>' + taskLinks(s.moved, true) + '</div>';
+  ["created", "updated"].forEach(function(a){
+    var r = (s.reminders || []).filter(function(x){ return x.action === a; }), m = (s.memos || []).filter(function(x){ return x.action === a; });
+    var lbl = a === "created" ? "Eklenen" : "Güncellenen";
+    if(r.length) h += '<div class="ai-action-group"><div class="ai-action-label">' + lbl + ' hatırlatma</div>' + personalLinks(r, "reminders", I_BELL) + '</div>';
+    if(m.length) h += '<div class="ai-action-group"><div class="ai-action-label">' + lbl + ' not</div>' + personalLinks(m, "memos", I_NOTE) + '</div>';
+  });
   if(s.skipped.length) h += '<div class="ai-action-skip"><b>Uygulanmayan:</b><ul>' + s.skipped.map(function(x){ return "<li>" + esc(x) + "</li>"; }).join("") + '</ul></div>';
   if(it.token){
     h += it.undone
@@ -74,7 +90,7 @@ function render(){
   var el = $("aiMessages");
   if(!items.length){
     el.innerHTML = '<div class="ai-empty"><div class="ai-empty-title">Panonuzla ilgili ne yapmak istersiniz?</div>' +
-      '<p>İş oluşturabilir, düzenleyebilir ve sütunlar arasında taşıyabilirim. Yaptığım her adımı tek tıkla geri alabilirsiniz.</p>' +
+      '<p>İş oluşturabilir, düzenleyebilir ve sekmeler arasında taşıyabilirim; hatırlatma ve not ekleyip güncelleyebilirim. Yaptığım her adımı tek tıkla geri alabilirsiniz.</p>' +
       '<div class="ai-examples">' + EXAMPLES.map(function(x){ return '<button type="button" class="ai-example" data-ai-example="' + esc(x) + '">' + esc(x) + '</button>'; }).join("") + '</div></div>';
   } else {
     el.innerHTML = items.map(function(it, i){
@@ -164,8 +180,8 @@ function renderModels(list){
   });
   sel.value = cur.id;
   $("aiFoot").textContent = (cur.builtin
-    ? "Panodaki aktif işlerin özeti OpenRouter'a gönderilir."
-    : "Panodaki aktif işlerin özeti " + cur.baseUrl + " adresine gönderilir.") + " Sohbet kaydedilmez.";
+    ? "Aktif işlerin ve yaklaşan hatırlatmaların özeti OpenRouter'a gönderilir"
+    : "Aktif işlerin ve yaklaşan hatırlatmaların özeti " + cur.baseUrl + " adresine gönderilir") + "; notlarınız yalnızca asistan onları aradığında gönderilir. Sohbet kaydedilmez.";
 }
 
 function init(bridge){
@@ -191,10 +207,11 @@ function init(bridge){
     if(e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); $("aiSend").click(); }
   });
   $("aiMessages").addEventListener("click", function(e){
-    var ex = e.target.closest("[data-ai-example]"), op = e.target.closest("[data-ai-open]"), un = e.target.closest("[data-ai-undo]");
+    var ex = e.target.closest("[data-ai-example]"), op = e.target.closest("[data-ai-open]"), un = e.target.closest("[data-ai-undo]"), go = e.target.closest("[data-ai-goto]");
     if(ex){ inp.value = ex.getAttribute("data-ai-example"); autosize(); inp.focus(); }
     else if(op) B.openTask(op.getAttribute("data-ai-open"));
     else if(un) undo(un.getAttribute("data-ai-undo"));
+    else if(go && B.openView) B.openView(go.getAttribute("data-ai-goto"));
   });
   var saved = null; try{ saved = localStorage.getItem(PREF_OPEN); }catch(e){}
   if(saved === "1") setOpen(true);

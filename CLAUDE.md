@@ -116,13 +116,15 @@ Ortam değişkenleri: `PORT`, `DATA_DIR`, `HOST`, `OPENROUTER_API_KEY` (ortamdak
 - **Eski sunucu uyarısı**: `boot` sırasında `meta`'da yeni türler yoksa "Sunucuyu yeniden başlatın" uyarısı; PUT 404 dönerse aynı açıklayıcı mesaj.
 
 ## AI (önemli ayrıntılar)
+**Pano asistanı — hatırlatmalar ve Notlarım:** `create_reminders` / `update_reminders` (tarih zorunlu ve silinemez, `time` "SS:DD" ya da "", `done`, `taskId` yalnızca aktif iş) / `list_reminders` (`status` open|done|all, `group` over|today|soon|later), `create_memos` / `update_memos` (metni tamamen değiştirir) / `list_memos`. Silme yok. Pano özetinde açık hatırlatma sayısı + en yakın 20'si ve not **sayısı** gider; not metinleri yalnızca `list_memos` ile. Hatırlatma/not satır içi düzenlenirken (`state.remEditing` / `memoEditing`) ilgili araçlar reddedilir. Geri alma kaydı tür başınadır (`aiUndoLog[token] = { before:{tasks,reminders,memos}, created:{…}, kinds }`); tek adımda iş + hatırlatma + not birlikte geri alınır. Eylem kartında hatırlatma/not satırları ilgili sayfayı açar (`openView`).
+
 **Pano asistanı** (`/api/ai/chat`, `lib/ai-board.js` + `js/components/ai-chat.js` + `js/features/ai-bridge.js`): sunucu yalnızca aracıdır; sistem mesajı, araç şemaları ve sınırlar sunucuda. Araçları tarayıcı çalıştırır (`aiApply`), sonuçları `tool` mesajı olarak geri gönderir; mesaj başına en fazla 6 tur. Sorumlular araçlarda `units[]` / `members[]` (güncellemede tam liste; çıkarılan ekibin çalışanları da çıkar), `list_tasks`'ta `unit` / `member`; istemci `resolveUnit` / `resolveMember` ile id'yi ya da adı (Türkçe harf duyarsız; tek eşleşmede yalnızca ad) kabul eder. Araçlar: `create_tasks`, `update_tasks`, `move_tasks`, `list_tasks`, `get_task`; **silme/arşivleme yok**. `aiApply` öğe öğe doğrular, geçerlileri tek `commit` ile uygular, `applied: 0` ise `warning` döner; her adım için geri alma kaydı (`aiUndo`). Modal açıkken değişiklik reddedilir. Pano özeti her işte hazır `due` metni taşır; sistem mesajında 14 günlük takvim var. Kurallar: tarih uydurma, id gösterme, varsayılan sorumlu/öncelik, özeti yalnızca `ok` listesine dayandır, toplu işte önce `list_tasks`.
 
 **Proje asistanı** (`/api/ai/project`, `lib/ai-project.js` + `js/views/project-assistant.js` → `pa*` fonksiyonları): bağlamı `projectContext` DB'den kurar: seçili notların `text`'i, eklerin `attText` metni (okunamayanlar yalnızca adıyla `unreadable`), isteğe bağlı işler. **Bütçe**: yerleşik 150 bin, yerel 40 bin karakter; `fitBudget` tek bir üst sınırla adil kırpar (küçük kaynaklar tam kalır). Sistem mesajı: yalnızca kaynaklara dayan, uydurma, `[Not: …]`/`[Dosya: …]` diye kaynak göster, tablo/başlık kullanma. Zaman aşımı en az 180 sn. İstemci okunamayan ek kimliklerini de gönderir (adlarının bildirilmesi için). Sohbet bellekte; "Yanıtı nota kaydet" → yeni `projectNotes` kaydı. Model seçimi pano asistanıyla ortak (`AiModels`).
 
 **Modeller:** yerleşik `openrouter` → `openai/gpt-oss-120b` (`X-Title` başlığı; pano isteklerinde `provider.require_parameters`). Ek modeller OpenAI uyumlu `baseUrl + /chat/completions`; zaman aşımı 180 sn. `<think>` metni atılır. Seçili model `localStorage` (`isTakip.aiModel`).
 
-**Gizlilik:** pano: aktif işlerin özeti; proje asistanı: seçili notların ve eklerin **tam metni**. Seçili modele (OpenRouter → internet) gider. Kullanıcının gerçek verisini canlı modele **göndermeyin**; canlı denemeleri sentetik test verisiyle yapın.
+**Gizlilik:** pano: aktif işlerin ve açık hatırlatmaların (en yakın 20) özeti, notların yalnızca asistanın `list_memos` ile aradığı kısmı; proje asistanı: seçili notların ve eklerin **tam metni**. Seçili modele (OpenRouter → internet) gider. Kullanıcının gerçek verisini canlı modele **göndermeyin**; canlı denemeleri sentetik test verisiyle yapın.
 
 ## Test yaklaşımı
 Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp çalıştırılır. Aynı yöntemi tekrarlayın:
@@ -133,7 +135,7 @@ Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp ça
 - **Demo veri:** `DATA_DIR=... PORT=3917 node tools/demo-veri.js` (28 iş, 4 proje, 3 arşiv kaydı, ekiplere 8 demo çalışan (`demo-m*`), bazı işlerde birden fazla ekip/çalışan; 7 gecikmiş, 3 bugün, 5 yakın).
 - **Göç testi:** eski sürüm `server.js`'in bir kopyasıyla JSON verisi üretip yeni sunucuyu aynı klasörde açın; `/api/state` birebir aynı olmalı.
 - **Servis testi:** `servis.ps1 -GorevAdi IsTakip-Test -Port 3917 -VeriKlasoru <geçici>`; bittiğinde görevi ve `logs/server-3917.log`'u silin. Kullanıcının "IsTakip" görevine dokunmayın.
-- `node --check <dosya>`; PowerShell için `[System.Management.Automation.Language.Parser]::ParseFile`.
+- `node --check <dosya>` — **dikkat:** `import` içeren `.js` dosyasında (istemci ES modülleri) sözdizimi hatası olsa bile 0 döner; istemci dosyalarını `.mjs` kopyasıyla denetleyin (ör. `cp f.js /tmp/x.mjs && node --check /tmp/x.mjs`). PowerShell için `[System.Management.Automation.Language.Parser]::ParseFile`.
 - **`server.js` / `lib/` değişirse** kullanıcıya sunucuyu yeniden başlatmasını söyleyin: `servis\servis-kur.bat` (eski sunucuyu durdurup yenisini başlatır); elle çalışıyorsa `node server.js` penceresinde Ctrl+C + yeniden çalıştır. Yalnızca `public/` değiştiyse F5 yeterlidir (statik dosyalar `no-cache`).
 
 ## Bilinen tuzaklar
@@ -145,6 +147,8 @@ Repoda test dosyası **yok**; geçici test betikleri scratchpad'de yazılıp ça
 - **Git satır sonu dönüşümü:** kullanıcıda `core.autocrlf` açık. `data/` artık git dışında; yine de `.gitattributes` `data/**` ve ikili türler için dönüşümü kapatır (`-text`), çünkü metin sanılan ekler (ör. PDF) depodan geri alınırken bozulur. Depoya ikili/veri dosyası eklerseniz bunu koruyun.
 - `.env` ayrıştırıcısı BOM, `export`, tırnaklı değer ve satır sonu yorumunu destekler; ortamda tanımlı değişkeni ezmez.
 - `document.execCommand` editörde bilinçli olarak kullanılıyor. Yapıştırılan içerik her zaman temizleniyor.
+- **Kod üreten betiklerde kaçış:** Bash heredoc içinde Node ile kod yazarken `
+`, `s` gibi kaçışlar bozulabiliyor (string'e gerçek satır sonu, `/s+/` gibi). Kaçış içeren kodu Edit/Write aracıyla yazın.
 - Tarayıcının `confirm()` / `alert()` pencereleri kullanılmaz; `showConfirm` / `showInfo` kullanılır. `showConfirm`'e `select` verilirse seçilen değer `onConfirm(value)`'ya geçer.
 - Tercihler `localStorage`'da (uyarı paneli, AI paneli, seçili model, durum sekmesi). Testlerden önce `localStorage.clear()`.
 - Yeniden çizimde kaybolmaması gereken giriş alanları (hatırlatma/not düzenleme formu, proje asistanı) ya statik HTML'dedir ya da `render*` içinde değerleri saklanıp geri yazılır; `reloadFromServer` düzenleme sürerken çalışmaz.
